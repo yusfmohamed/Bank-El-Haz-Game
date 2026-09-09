@@ -1,0 +1,13 @@
+{
+  "name": "bank-el-hazz",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=@bank-el-hazz/server",
+    "dev:web": "npm run dev --workspace=@bank-el-hazz/web",
+    "build": "npm run build --workspaces --if-present"
+  }
+}
