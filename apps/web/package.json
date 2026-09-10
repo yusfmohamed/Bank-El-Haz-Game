@@ -8,12 +8,13 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "@bank-el-hazz/engine": "*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "socket.io-client": "^4.7.5"
-  },
+"dependencies": {
+  "@bank-el-hazz/engine": "*",
+  "react": "^18.3.1",
+  "react-dom": "^18.3.1",
+  "socket.io-client": "^4.7.5",
+  "serve": "^14.2.4"
+},
   "devDependencies": {
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
