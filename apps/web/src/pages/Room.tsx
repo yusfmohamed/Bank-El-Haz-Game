@@ -1,4 +1,5 @@
 import type { GameState, GameAction } from "@bank-el-hazz/engine";
+import { MAX_PLAYERS, colorHex } from "@bank-el-hazz/engine";
 import type { LobbyInfo } from "../hooks/useGameSocket";
 import GameScreen from "./GameScreen";
 
@@ -25,25 +26,13 @@ export default function Room({ lobby, gameState, myId, dispatch, onStartGame }: 
 
         <div className="room-code-display">{lobby.code}</div>
 
-        <label className="field-label">اللاعبين ({lobby.players.length}/4)</label>
+        <label className="field-label">اللاعبين ({lobby.players.length}/{MAX_PLAYERS})</label>
         <div style={{ marginBottom: 20 }}>
           {lobby.players.map((p) => (
-            <div
-              key={p.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: "rgba(0,0,0,0.2)",
-                borderRadius: 10,
-                padding: "10px 14px",
-                marginBottom: 6,
-                fontSize: 13.5,
-                fontWeight: 700,
-              }}
-            >
-              <span>{p.id === lobby.hostId ? "👑" : "👤"}</span>
-              <span>{p.name}</span>
+            <div key={p.id} className="lobby-player-row">
+              <span className="color-swatch" style={{ background: colorHex(p.color), width: 16, height: 16 }} />
+              <span>{p.id === lobby.hostId ? "👑" : ""}</span>
+              <span style={{ fontWeight: 700 }}>{p.name}</span>
               {p.id === myId && <span style={{ color: "var(--gold)", marginRight: "auto" }}>(انت)</span>}
             </div>
           ))}

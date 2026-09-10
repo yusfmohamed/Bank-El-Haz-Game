@@ -169,3 +169,31 @@ body {
   padding: 16px;
   margin-bottom: 18px;
 }
+
+.lobby-player-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px 14px;
+  margin-bottom: 6px; font-size: 13.5px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0;
+}
+.color-swatch-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: rgba(0,0,0,0.2); border: 1px solid var(--panel-line); border-radius: 14px;
+  padding: 14px 8px; cursor: pointer; transition: all 0.2s;
+  font-family: "Cairo", sans-serif;
+}
+.color-swatch-btn:hover:not(:disabled) { border-color: var(--gold); transform: translateY(-2px); }
+.color-swatch-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.color-swatch {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.5); box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  display: inline-block;
+}
+.color-label { font-size: 11.5px; color: #d0c8a8; font-weight: 700; }
+.color-taken-note { font-size: 9px; color: #e07a6f; }

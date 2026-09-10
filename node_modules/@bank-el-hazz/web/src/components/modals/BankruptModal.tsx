@@ -2,11 +2,13 @@ import type { GameState, GameAction } from "@bank-el-hazz/engine";
 
 interface BankruptModalProps {
   gameState: GameState;
-  myId: string;
+  myId: string | undefined;
+  isMyTurn: boolean;
   dispatch: (action: GameAction) => void;
 }
 
-export default function BankruptModal({ gameState, myId, dispatch }: BankruptModalProps) {
+export default function BankruptModal({ gameState, myId, isMyTurn, dispatch }: BankruptModalProps) {
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   return (
     <div className="overlay open">
       <div className="modal" style={{ textAlign: "center" }}>
@@ -15,9 +17,13 @@ export default function BankruptModal({ gameState, myId, dispatch }: BankruptMod
         <div className="modal-sub" style={{ fontSize: 14, color: "#e07a6f" }}>
           {gameState.log[0] || "لاعب فلس"}
         </div>
-        <button className="btn-ok" onClick={() => dispatch({ type: "ACK_BANKRUPT", playerId: myId })}>
-          تابع ←
-        </button>
+        {isMyTurn && myId ? (
+          <button className="btn-ok" onClick={() => dispatch({ type: "ACK_BANKRUPT", playerId: myId })}>
+            تابع ←
+          </button>
+        ) : (
+          <div className="waiting-note">⏳ هنكمل خلال لحظات...</div>
+        )}
       </div>
     </div>
   );

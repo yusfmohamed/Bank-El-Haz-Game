@@ -1,8 +1,6 @@
-import { TILES } from "@bank-el-hazz/engine";
+import { TILES, colorHex } from "@bank-el-hazz/engine";
 import type { GameState } from "@bank-el-hazz/engine";
 import Tile from "./Tile";
-
-const PLAYER_COLORS = ["#f0b429", "#c0392b", "#2f7fb0", "#2fa562"];
 
 // Start bottom-left, flow clockwise — matches the RTL board reference.
 function posForIndex(i: number): { col: number; row: number } {
@@ -14,11 +12,12 @@ function posForIndex(i: number): { col: number; row: number } {
 
 interface BoardProps {
   gameState: GameState;
+  rollingDice?: { d1: number; d2: number } | null; // client-side animation override, while a roll is in flight
   onTileClick?: (index: number) => void;
 }
 
-export default function Board({ gameState, onTileClick }: BoardProps) {
-  const { d1, d2 } = gameState.lastRollDetail ?? { d1: 1, d2: 1 };
+export default function Board({ gameState, rollingDice, onTileClick }: BoardProps) {
+  const shown = rollingDice ?? gameState.lastRollDetail ?? { d1: 1, d2: 1 };
 
   return (
     <div className="board-wrap">
@@ -27,16 +26,16 @@ export default function Board({ gameState, onTileClick }: BoardProps) {
           {TILES.map((tile, i) => {
             const { col, row } = posForIndex(i);
             const ownerId = gameState.ownedBy[tile.name];
-            const ownerIdx = ownerId ? gameState.players.findIndex((p) => p.id === ownerId) : -1;
+            const owner = ownerId ? gameState.players.find((p) => p.id === ownerId) : undefined;
             const tokenColors = gameState.players
               .filter((p) => !p.bankrupt && p.pos === i)
-              .map((p) => PLAYER_COLORS[gameState.players.indexOf(p) % PLAYER_COLORS.length]);
+              .map((p) => colorHex(p.color));
 
             return (
               <div key={tile.name + i} style={{ gridColumn: col, gridRow: row }}>
                 <Tile
                   tile={tile}
-                  ownerColor={ownerIdx >= 0 ? PLAYER_COLORS[ownerIdx % PLAYER_COLORS.length] : null}
+                  ownerColor={owner ? colorHex(owner.color) : null}
                   houses={gameState.houses[tile.name] || 0}
                   tokenColors={tokenColors}
                   onClick={() => onTileClick?.(i)}
@@ -58,9 +57,9 @@ export default function Board({ gameState, onTileClick }: BoardProps) {
             </div>
             <h1 className="board-title">بنك الحظ</h1>
             <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
-            <div className="dice-wrap">
-              <Die value={d1} />
-              <Die value={d2} />
+            <div className={`dice-wrap ${rollingDice ? "dice-rolling" : ""}`}>
+              <Die value={shown.d1} />
+              <Die value={shown.d2} />
             </div>
           </div>
         </div>

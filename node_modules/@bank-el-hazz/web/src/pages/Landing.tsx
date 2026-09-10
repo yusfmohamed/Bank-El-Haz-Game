@@ -1,32 +1,47 @@
 import { useState } from "react";
+import type { PlayerColor } from "@bank-el-hazz/engine";
+import { getSavedNickname } from "../lib/identity";
+import CharacterPicker from "../components/CharacterPicker";
 
 interface LandingProps {
   error: string | null;
-  onCreateRoom: (nickname: string) => void;
-  onJoinRoom: (code: string, nickname: string) => void;
+  onCreateRoom: (nickname: string, color: PlayerColor) => void;
+  onJoinRoom: (code: string, nickname: string, color: PlayerColor) => void;
 }
 
+type Step = "choose" | "join" | "character";
+
 export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProps) {
-  const [nickname, setNickname] = useState("");
-  const [mode, setMode] = useState<"choose" | "join">("choose");
+  const [nickname, setNickname] = useState(getSavedNickname());
+  const [step, setStep] = useState<Step>("choose");
   const [roomCode, setRoomCode] = useState("");
 
   const canSubmit = nickname.trim().length >= 2;
+
+  if (step === "character") {
+    return (
+      <CharacterPicker
+        onBack={() => setStep(roomCode ? "join" : "choose")}
+        onConfirm={(color) => {
+          if (roomCode) onJoinRoom(roomCode.trim(), nickname.trim(), color);
+          else onCreateRoom(nickname.trim(), color);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="screen-center">
       <div className="card">
         {/*
-          LOGO — this is the line you asked for. Drop your file at
-          apps/web/public/assets/logo.png and it will appear here automatically,
-          no code changes needed. Any future images (avatars, board icons,
-          the bank illustration, etc.) also go in that same public/assets
-          folder — see the README.md sitting right next to it.
+          LOGO — drop your file at apps/web/public/assets/logo.png and it
+          appears here automatically, no code changes needed. Any future
+          images go in that same public/assets folder.
         */}
-        <img src="/assets/Logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        <img src="/assets/logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
 
-        {/* <div className="brand-title">بنك الحظ</div> */}
-        {/* <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
+        <div className="brand-title">بنك الحظ</div>
+        <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
 
         {error && <div className="error-note">{error}</div>}
 
@@ -39,22 +54,18 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
           onChange={(e) => setNickname(e.target.value)}
         />
 
-        {mode === "choose" && (
+        {step === "choose" && (
           <>
-            <button
-              className="btn-primary"
-              disabled={!canSubmit}
-              onClick={() => onCreateRoom(nickname.trim())}
-            >
+            <button className="btn-primary" disabled={!canSubmit} onClick={() => { setRoomCode(""); setStep("character"); }}>
               🎲 اعمل غرفة جديدة
             </button>
-            <button className="btn-secondary" onClick={() => setMode("join")}>
+            <button className="btn-secondary" onClick={() => setStep("join")}>
               🔑 عندي كود غرفة
             </button>
           </>
         )}
 
-        {mode === "join" && (
+        {step === "join" && (
           <>
             <label className="field-label">كود الغرفة</label>
             <input
@@ -68,11 +79,11 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
             <button
               className="btn-primary"
               disabled={!canSubmit || roomCode.trim().length < 5}
-              onClick={() => onJoinRoom(roomCode.trim(), nickname.trim())}
+              onClick={() => setStep("character")}
             >
-              🚪 ادخل الغرفة
+              🚪 التالي — اختار شخصيتك
             </button>
-            <button className="btn-secondary" onClick={() => setMode("choose")}>
+            <button className="btn-secondary" onClick={() => setStep("choose")}>
               ← رجوع
             </button>
           </>

@@ -1,6 +1,6 @@
 import { TILES, EVENT_POOLS, GROUPS, tileByName } from "./board";
 import type {
-  GameState, Player, Tile, PropertyTile, GameAction, GameEventCard,
+  GameState, Player, Tile, PropertyTile, GameAction, GameEventCard, PlayerColor,
 } from "./types";
 
 const STARTING_COINS = 1500;
@@ -11,18 +11,19 @@ const GO_BONUS = 200;
 // ----------------------------------------------------------------------------
 
 export function createInitialState(
-  playerInputs: { id: string; name: string; isAI?: boolean }[]
+  playerInputs: { id: string; name: string; color: PlayerColor }[]
 ): GameState {
   return {
     players: playerInputs.map((p) => ({
       id: p.id,
       name: p.name,
-      isAI: !!p.isAI,
+      color: p.color,
       coins: STARTING_COINS,
       pos: 0,
       props: [],
       bankrupt: false,
       skipTurns: 0,
+      connected: true,
     })),
     currentPlayerIndex: 0,
     ownedBy: {},
@@ -35,6 +36,17 @@ export function createInitialState(
     winnerId: null,
     log: [],
   };
+}
+
+// Server-only mutation — NOT a GameAction, because a connection dropping is
+// not something a client should ever be able to claim happened to someone
+// else. The server calls this directly on socket disconnect/reconnect and
+// broadcasts the result, same as it would for applyAction.
+export function setPlayerConnected(state: GameState, playerId: string, connected: boolean): GameState {
+  const next: GameState = structuredClone(state);
+  const player = next.players.find((p) => p.id === playerId);
+  if (player) player.connected = connected;
+  return next;
 }
 
 // ----------------------------------------------------------------------------

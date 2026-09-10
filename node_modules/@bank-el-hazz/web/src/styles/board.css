@@ -25,6 +25,13 @@
 }
 .cur-name { color: #f2ecd6; font-size: 14px; font-weight: 700; }
 .cur-coins { color: var(--gold); font-size: 12px; font-weight: 600; }
+.topbar-right { display: flex; gap: 8px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 12px;
+  background: var(--bg-deep); border: 1px solid var(--panel-line); color: var(--gold);
+  display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 17px;
+}
+.icon-btn:hover { border-color: var(--gold); }
 
 /* Board */
 .board-wrap {
@@ -99,6 +106,8 @@
   padding: 7px;
 }
 .pip { width: 7px; height: 7px; border-radius: 50%; background: #1e3a28; margin: auto; }
+.dice-rolling .die { animation: dice-shake 0.08s ease-in-out infinite alternate; }
+@keyframes dice-shake { from { transform: rotate(-6deg) scale(0.96); } to { transform: rotate(6deg) scale(1.04); } }
 
 /* Bottom bar / player strip */
 .bottombar {
@@ -155,6 +164,38 @@
   padding: 12px; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; margin-bottom: 8px;
   font-family: "Cairo", sans-serif;
 }
+
+.waiting-note { margin-top: 16px; color: var(--text-soft); font-size: 13px; font-weight: 600; }
+
+.modal.wide { max-width: 560px; }
+.close-btn {
+  position: absolute; top: 16px; left: 16px; background: none; border: none; color: var(--text-soft);
+  font-size: 20px; cursor: pointer;
+}
+.close-btn:hover { color: var(--gold); }
+
+.empty-note { font-size: 12px; color: #5f7050; font-style: italic; padding: 10px; }
+
+.prop-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cdd6bd; padding: 8px 10px;
+  border-radius: 10px; background: rgba(0,0,0,0.2); margin-bottom: 6px;
+}
+.prop-row .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.prop-row .pname { flex: 1; }
+.prop-row .plevel { font-size: 10px; color: var(--gold); }
+.build-btn {
+  background: linear-gradient(135deg, var(--green), #1e7d49); border: none; border-radius: 8px;
+  padding: 6px 10px; color: #fff; font-size: 10.5px; font-weight: 800; cursor: pointer; font-family: "Cairo", sans-serif;
+}
+.build-btn:hover { filter: brightness(1.1); }
+.build-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.need-monopoly-note { font-size: 9.5px; color: #7c8a6c; }
+
+.stat-row { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2); margin-bottom: 8px; }
+.stat-row .sinfo { flex: 1; }
+.stat-row .sname { font-size: 12.5px; font-weight: 700; color: #dcd4b0; }
+.stat-row .sdetail { font-size: 10.5px; color: #8a9a7a; }
+.stat-row .snet { font-size: 14px; font-weight: 800; color: var(--gold); }
 
 /* Win overlay */
 .win-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);

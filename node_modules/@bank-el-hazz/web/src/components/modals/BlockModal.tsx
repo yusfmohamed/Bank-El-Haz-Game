@@ -2,11 +2,26 @@ import type { GameState, GameAction } from "@bank-el-hazz/engine";
 
 interface BlockModalProps {
   gameState: GameState;
-  myId: string;
+  myId: string | undefined;
+  isMyTurn: boolean;
   dispatch: (action: GameAction) => void;
 }
 
-export default function BlockModal({ gameState, myId, dispatch }: BlockModalProps) {
+export default function BlockModal({ gameState, myId, isMyTurn, dispatch }: BlockModalProps) {
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+  if (!isMyTurn || !myId) {
+    return (
+      <div className="overlay open">
+        <div className="modal" style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>🚫</div>
+          <div className="modal-title">كارت حظر!</div>
+          <div className="waiting-note">⏳ {currentPlayer.name} بيختار حد يحظره...</div>
+        </div>
+      </div>
+    );
+  }
+
   const targets = gameState.players.filter((p) => p.id !== myId && !p.bankrupt);
 
   return (

@@ -47,15 +47,18 @@ export interface GameEventCard {
   coins?: number;
 }
 
+export type PlayerColor = "yellow" | "red" | "blue" | "green" | "purple" | "grey";
+
 export interface Player {
-  id: string;          // socket id — stable per connection
+  id: string;           // stable player token — survives reconnects, NOT the socket id
   name: string;
-  isAI: boolean;
+  color: PlayerColor;
   coins: number;
   pos: number;
   props: string[];      // tile names owned
   bankrupt: boolean;
   skipTurns: number;
+  connected: boolean;   // false while a disconnected player's grace period is running
 }
 
 export interface GameState {
