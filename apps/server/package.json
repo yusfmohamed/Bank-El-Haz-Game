@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:fastify --external:socket.io --external:nanoid",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:fastify --external:@fastify/static --external:socket.io --external:nanoid",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "@bank-el-hazz/engine": "*",
+    "@fastify/static": "^7.0.4",
     "fastify": "^4.28.1",
     "nanoid": "^5.0.7",
     "socket.io": "^4.7.5"
