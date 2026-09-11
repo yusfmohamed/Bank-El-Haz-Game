@@ -1,47 +1,30 @@
 import { useState } from "react";
-import type { PlayerColor } from "@bank-el-hazz/engine";
 import { getSavedNickname } from "../lib/identity";
-import CharacterPicker from "../components/CharacterPicker";
 
 interface LandingProps {
   error: string | null;
-  onCreateRoom: (nickname: string, color: PlayerColor) => void;
-  onJoinRoom: (code: string, nickname: string, color: PlayerColor) => void;
+  onCreateRoom: (nickname: string) => void;
+  onJoinRoom: (code: string, nickname: string) => void;
 }
-
-type Step = "choose" | "join" | "character";
 
 export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProps) {
   const [nickname, setNickname] = useState(getSavedNickname());
-  const [step, setStep] = useState<Step>("choose");
+  const [mode, setMode] = useState<"choose" | "join">("choose");
   const [roomCode, setRoomCode] = useState("");
 
   const canSubmit = nickname.trim().length >= 2;
-
-  if (step === "character") {
-    return (
-      <CharacterPicker
-        onBack={() => setStep(roomCode ? "join" : "choose")}
-        onConfirm={(color) => {
-          if (roomCode) onJoinRoom(roomCode.trim(), nickname.trim(), color);
-          else onCreateRoom(nickname.trim(), color);
-        }}
-      />
-    );
-  }
 
   return (
     <div className="screen-center">
       <div className="card">
         {/*
           LOGO — drop your file at apps/web/public/assets/logo.png and it
-          appears here automatically, no code changes needed. Any future
-          images go in that same public/assets folder.
+          appears here automatically, no code changes needed.
         */}
-        <img src="/assets/logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        <img src="/assets/Logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
 
-        <div className="brand-title">بنك الحظ</div>
-        <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
+        {/* <div className="brand-title">بنك الحظ</div> */}
+        {/* <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
 
         {error && <div className="error-note">{error}</div>}
 
@@ -54,18 +37,18 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
           onChange={(e) => setNickname(e.target.value)}
         />
 
-        {step === "choose" && (
+        {mode === "choose" && (
           <>
-            <button className="btn-primary" disabled={!canSubmit} onClick={() => { setRoomCode(""); setStep("character"); }}>
+            <button className="btn-primary" disabled={!canSubmit} onClick={() => onCreateRoom(nickname.trim())}>
               🎲 اعمل غرفة جديدة
             </button>
-            <button className="btn-secondary" onClick={() => setStep("join")}>
+            <button className="btn-secondary" onClick={() => setMode("join")}>
               🔑 عندي كود غرفة
             </button>
           </>
         )}
 
-        {step === "join" && (
+        {mode === "join" && (
           <>
             <label className="field-label">كود الغرفة</label>
             <input
@@ -79,15 +62,17 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
             <button
               className="btn-primary"
               disabled={!canSubmit || roomCode.trim().length < 5}
-              onClick={() => setStep("character")}
+              onClick={() => onJoinRoom(roomCode.trim(), nickname.trim())}
             >
-              🚪 التالي — اختار شخصيتك
+              🚪 ادخل الغرفة
             </button>
-            <button className="btn-secondary" onClick={() => setStep("choose")}>
+            <button className="btn-secondary" onClick={() => setMode("choose")}>
               ← رجوع
             </button>
           </>
         )}
+
+        <div className="hint-note">هتختار لونك جوه غرفة الانتظار</div>
       </div>
     </div>
   );

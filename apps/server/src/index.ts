@@ -1,36 +1,15 @@
 import Fastify from "fastify";
-import fastifyStatic from "@fastify/static";
 import { Server } from "socket.io";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { existsSync } from "node:fs";
 import type { GameAction, PlayerColor } from "@bank-el-hazz/engine";
 import {
   createRoom, joinRoom, startGame, dispatchAction,
-  leaveLobby, findRoomByToken, markDisconnected, type Room,
+  leaveLobby, findRoomByToken, markDisconnected, setLobbyColor, type Room,
 } from "./rooms";
 
 const PORT = Number(process.env.PORT) || 4000;
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = Fastify();
 app.get("/health", async () => ({ ok: true }));
-
-// Serve the built web app (apps/web/dist) from this same server, so the
-// whole game — frontend + Socket.IO — lives behind one port/URL. This is
-// what lets you share a single tunnel link with friends instead of running
-// two separate processes with CORS between them.
-const webDist = join(__dirname, "../../web/dist");
-if (existsSync(webDist)) {
-  app.register(fastifyStatic, { root: webDist });
-  app.setNotFoundHandler((req, reply) => {
-    if (req.raw.method === "GET" && !req.url.startsWith("/socket.io")) {
-      reply.sendFile("index.html");
-    } else {
-      reply.code(404).send({ error: "Not found" });
-    }
-  });
-}
 
 const httpServer = app.server;
 const io = new Server(httpServer, {
@@ -68,6 +47,14 @@ io.on("connection", (socket) => {
     } else {
       broadcastLobby(result.room);
     }
+  });
+
+  socket.on("set_color", ({ code, color }: { code: string; color: PlayerColor }) => {
+    const token = socketToToken.get(socket.id);
+    if (!token) return;
+    const result = setLobbyColor(code, token, color);
+    if ("error" in result) { socket.emit("room_error", { message: result.error }); return; }
+    broadcastLobby(result);
   });
 
   socket.on("start_game", ({ code }: { code: string }) => {

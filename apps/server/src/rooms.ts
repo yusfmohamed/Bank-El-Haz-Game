@@ -78,6 +78,18 @@ export function joinRoom(code: string, token: string, name: string, requestedCol
   return { room, reconnected: false };
 }
 
+export function setLobbyColor(code: string, token: string, requestedColor: PlayerColor): Room | { error: string } {
+  const room = getR(code);
+  if (!room) return { error: "الغرفة مش موجودة." };
+  if (room.state) return { error: "اللعبة بدأت خلاص، مينفعش تغير اللون دلوقتي." };
+  const player = room.lobby.find((p) => p.id === token);
+  if (!player) return { error: "مش موجود في الغرفة دي." };
+  const takenByOthers = room.lobby.filter((p) => p.id !== token).map((p) => p.color);
+  if (takenByOthers.includes(requestedColor)) return { error: "اللون ده متاخد بالفعل." };
+  player.color = requestedColor;
+  return room;
+}
+
 export function getRoom(code: string): Room | undefined {
   return getR(code);
 }

@@ -67,17 +67,23 @@ export function useGameSocket() {
     return () => { socket.off("connect", tryResume); };
   }, [myToken]);
 
-  const createRoom = useCallback((nickname: string, color: PlayerColor) => {
+  const createRoom = useCallback((nickname: string) => {
     setError(null);
     saveNickname(nickname);
-    socket.emit("create_room", { token: myToken, nickname, color });
+    socket.emit("create_room", { token: myToken, nickname });
   }, [myToken]);
 
-  const joinRoom = useCallback((code: string, nickname: string, color: PlayerColor) => {
+  const joinRoom = useCallback((code: string, nickname: string) => {
     setError(null);
     saveNickname(nickname);
-    socket.emit("join_room", { token: myToken, code, nickname, color });
+    socket.emit("join_room", { token: myToken, code, nickname });
   }, [myToken]);
+
+  const setColor = useCallback((color: PlayerColor) => {
+    if (!lobby) return;
+    setError(null);
+    socket.emit("set_color", { code: lobby.code, color });
+  }, [lobby]);
 
   const startGame = useCallback(() => {
     if (!lobby) return;
@@ -90,5 +96,5 @@ export function useGameSocket() {
     socket.emit("game_action", { code: lobby.code, action });
   }, [lobby]);
 
-  return { lobby, gameState, error, myId: myToken, resuming, createRoom, joinRoom, startGame, dispatch };
+  return { lobby, gameState, error, myId: myToken, resuming, createRoom, joinRoom, setColor, startGame, dispatch };
 }

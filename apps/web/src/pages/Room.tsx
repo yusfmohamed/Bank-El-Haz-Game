@@ -1,6 +1,7 @@
-import type { GameState, GameAction } from "@bank-el-hazz/engine";
+import type { GameState, GameAction, PlayerColor } from "@bank-el-hazz/engine";
 import { MAX_PLAYERS, colorHex } from "@bank-el-hazz/engine";
 import type { LobbyInfo } from "../hooks/useGameSocket";
+import ColorSwatchGrid from "../components/ColorSwatchGrid";
 import GameScreen from "./GameScreen";
 
 interface RoomProps {
@@ -8,15 +9,19 @@ interface RoomProps {
   gameState: GameState | null;
   myId: string | undefined;
   dispatch: (action: GameAction) => void;
+  onSetColor: (color: PlayerColor) => void;
   onStartGame: () => void;
 }
 
-export default function Room({ lobby, gameState, myId, dispatch, onStartGame }: RoomProps) {
+export default function Room({ lobby, gameState, myId, dispatch, onSetColor, onStartGame }: RoomProps) {
   const isHost = lobby.hostId === myId;
 
   if (gameState) {
     return <GameScreen gameState={gameState} myId={myId} dispatch={dispatch} />;
   }
+
+  const me = lobby.players.find((p) => p.id === myId);
+  const takenByOthers = lobby.players.filter((p) => p.id !== myId).map((p) => p.color);
 
   return (
     <div className="screen-center">
@@ -37,6 +42,9 @@ export default function Room({ lobby, gameState, myId, dispatch, onStartGame }: 
             </div>
           ))}
         </div>
+
+        <label className="field-label">لونك</label>
+        <ColorSwatchGrid takenByOthers={takenByOthers} current={me?.color} onSelect={onSetColor} />
 
         {isHost ? (
           <button className="btn-primary" disabled={lobby.players.length < 2} onClick={onStartGame}>

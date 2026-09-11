@@ -3,7 +3,7 @@ import Landing from "./pages/Landing";
 import Room from "./pages/Room";
 
 export default function App() {
-  const { lobby, gameState, error, myId, resuming, createRoom, joinRoom, startGame, dispatch } = useGameSocket();
+  const { lobby, gameState, error, myId, resuming, createRoom, joinRoom, setColor, startGame, dispatch } = useGameSocket();
 
   if (resuming && !lobby && !gameState) {
     return (
@@ -20,5 +20,7 @@ export default function App() {
     return <Landing error={error} onCreateRoom={createRoom} onJoinRoom={joinRoom} />;
   }
 
-  return <Room lobby={lobby} gameState={gameState} myId={myId} dispatch={dispatch} onStartGame={startGame} />;
+  return (
+    <Room lobby={lobby} gameState={gameState} myId={myId} dispatch={dispatch} onSetColor={setColor} onStartGame={startGame} />
+  );
 }

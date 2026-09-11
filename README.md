@@ -75,7 +75,7 @@ bank-el-hazz/
             │   ├── Board.tsx
             │   ├── Tile.tsx
             │   ├── PlayerStrip.tsx
-            │   ├── CharacterPicker.tsx    color-selection popup
+            │   ├── ColorSwatchGrid.tsx    color picker, used inline in the lobby
             │   ├── PropertiesPanel.tsx    your properties + build houses/hotels
             │   ├── StatsPanel.tsx         net worth comparison
             │   └── modals/
@@ -131,7 +131,7 @@ no restart required. The landing page logo already looks for
 | A game rule (rent, prices, bankruptcy)  | `packages/engine/src/rules.ts` or `board.ts`           |
 | The 6 player colors                      | `packages/engine/src/colors.ts`                        |
 | The nickname / room-join screen          | `apps/web/src/pages/Landing.tsx`                       |
-| The character/color picker popup         | `apps/web/src/components/CharacterPicker.tsx`          |
+| The color picker (now in the lobby)      | `apps/web/src/components/ColorSwatchGrid.tsx`          |
 | The lobby screen                         | `apps/web/src/pages/Room.tsx`                          |
 | The in-game screen layout                | `apps/web/src/pages/GameScreen.tsx`                    |
 | The board / tiles / dice                 | `apps/web/src/components/Board.tsx`, `Tile.tsx`        |
@@ -211,8 +211,17 @@ with a real scripted multiplayer client, not assumed):
   them. Don't come back in time → you're auto-forfeited so the game isn't
   stuck waiting forever. Both paths tested directly, including forcing
   the timeout to actually fire.
+- **Color selection moved into the lobby** (not before joining) — you can
+  now see everyone else's color live before picking your own, and the
+  server rejects picking a color someone already has while allowing a
+  switch to any free one. Tested directly: default auto-assignment,
+  rejection of a taken color, and a successful switch all confirmed.
+- **Deploy-ready for hosts without monorepo root-directory support**
+  (like Bonto): root-level `npm run build` / `npm run start` now target
+  the server directly, tested by literally running that exact sequence
+  from the repo root standalone.
 - Production server bundle verified standalone (`npm run build` + `npm
-  run start`, no dev tools at runtime) under the same test suite
+  run start`, no dev tools at runtime) under the full test suite
 
 ⏳ **Not built yet:**
 - Actually deployed online (code is deploy-ready — see section 6 — but
