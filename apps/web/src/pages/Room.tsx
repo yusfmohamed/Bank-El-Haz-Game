@@ -1,6 +1,7 @@
 import type { GameState, GameAction, PlayerColor } from "@bank-el-hazz/engine";
 import { MAX_PLAYERS, colorHex } from "@bank-el-hazz/engine";
 import type { LobbyInfo } from "../hooks/useGameSocket";
+import { clearLastRoom } from "../lib/identity";
 import ColorSwatchGrid from "../components/ColorSwatchGrid";
 import GameScreen from "./GameScreen";
 
@@ -51,10 +52,21 @@ export default function Room({ lobby, gameState, myId, dispatch, onSetColor, onS
             {lobby.players.length < 2 ? "محتاج لاعب تاني على الأقل" : "🚀 ابدأ اللعبة"}
           </button>
         ) : (
-          <div style={{ textAlign: "center", color: "var(--text-soft)", fontSize: 13 }}>
+          <div style={{ textAlign: "center", color: "var(--text-soft)", fontSize: 13, marginBottom: 12 }}>
             في انتظار صاحب الغرفة يبدأ اللعبة...
           </div>
         )}
+
+        <button
+          className="btn-secondary"
+          onClick={() => {
+            if (!confirm("متأكد عايز تسيب الغرفة؟")) return;
+            clearLastRoom();
+            window.location.reload();
+          }}
+        >
+          🚪 اسيب الغرفة
+        </button>
       </div>
     </div>
   );

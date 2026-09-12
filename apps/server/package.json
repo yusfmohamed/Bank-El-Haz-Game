@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@bank-el-hazz/engine": "*",
-    "fastify": "^5.12.4",
+    "fastify": "^4.28.1",
     "nanoid": "^5.0.7",
     "socket.io": "^4.7.5"
   },

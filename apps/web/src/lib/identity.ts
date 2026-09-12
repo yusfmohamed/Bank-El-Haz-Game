@@ -6,15 +6,23 @@ function randomToken(): string {
   return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// sessionStorage, NOT localStorage — this is the important part. localStorage
+// is shared across every tab of the same browser, which meant two tabs
+// opened to test multiplayer were silently treated as the same player. A
+// page refresh within one tab still keeps the same sessionStorage (so
+// reconnect-after-refresh still works); a brand new tab correctly gets its
+// own identity, exactly like a different person joining.
 export function getPlayerToken(): string {
-  let token = localStorage.getItem(TOKEN_KEY);
+  let token = sessionStorage.getItem(TOKEN_KEY);
   if (!token) {
     token = randomToken();
-    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(TOKEN_KEY, token);
   }
   return token;
 }
 
+// Nickname is harmless to share across tabs (just a convenience prefill),
+// so it stays in localStorage.
 export function saveNickname(name: string) {
   localStorage.setItem(NICKNAME_KEY, name);
 }
@@ -23,11 +31,11 @@ export function getSavedNickname(): string {
 }
 
 export function saveLastRoom(code: string) {
-  localStorage.setItem(LAST_ROOM_KEY, code);
+  sessionStorage.setItem(LAST_ROOM_KEY, code);
 }
 export function getLastRoom(): string | null {
-  return localStorage.getItem(LAST_ROOM_KEY);
+  return sessionStorage.getItem(LAST_ROOM_KEY);
 }
 export function clearLastRoom() {
-  localStorage.removeItem(LAST_ROOM_KEY);
+  sessionStorage.removeItem(LAST_ROOM_KEY);
 }

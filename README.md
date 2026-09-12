@@ -25,6 +25,16 @@ they each need — React, Vite, Socket.io, Fastify, TypeScript, esbuild,
 all of it — into one shared `node_modules` folder. You only need to run
 this once, or again whenever you pull new code that added a dependency.
 
+> ⚠️ **Never zip or share your `node_modules` folder.** This project uses
+> npm workspaces, which links `packages/engine` into `node_modules` via a
+> symlink. Symlinks frequently don't survive being zipped and
+> re-extracted (especially across operating systems), and a broken link
+> here causes the server to crash immediately with `Cannot find package
+> '@bank-el-hazz/engine'`. If you ever need to share this project (with
+> me or anyone else), delete `node_modules` first — it's safe, it's
+> never part of what I hand you, and `npm install` rebuilds it correctly
+> every time.
+
 ---
 
 ## 2. Architecture — what's where
@@ -216,6 +226,20 @@ with a real scripted multiplayer client, not assumed):
   server rejects picking a color someone already has while allowing a
   switch to any free one. Tested directly: default auto-assignment,
   rejection of a taken color, and a successful switch all confirmed.
+- **Escape hatches for stale sessions**: a finished game now automatically
+  forgets itself (never auto-resumes into a game that already ended), and
+  there's now a real 🚪 exit button in both the lobby and the in-game
+  screen — no more needing to manually clear browser storage to start
+  fresh if the server has been running for a while.
+- **Fixed: two tabs in the same browser now work as two separate
+  players again.** The player token moved from `localStorage` (shared
+  across every tab of a browser) to `sessionStorage` (scoped to one tab).
+  This was a real regression introduced by the reconnect feature — two
+  tabs used to be two independent players before tokens existed, then
+  silently became "the same player" once the token was added. A page
+  refresh within one tab still keeps working for reconnect; a new tab
+  correctly gets its own identity now, same as a different person
+  joining.
 - **Deploy-ready for hosts without monorepo root-directory support**
   (like Bonto): root-level `npm run build` / `npm run start` now target
   the server directly, tested by literally running that exact sequence

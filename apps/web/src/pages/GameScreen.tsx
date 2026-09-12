@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState, GameAction } from "@bank-el-hazz/engine";
+import { clearLastRoom } from "../lib/identity";
 import Board from "../components/Board";
 import PlayerStrip from "../components/PlayerStrip";
 import PropertiesPanel from "../components/PropertiesPanel";
@@ -17,6 +18,24 @@ interface GameScreenProps {
 }
 
 const ROLL_ANIM_MS = 650;
+
+function GameOverScreen({ winnerName }: { winnerName?: string }) {
+  // A finished game should never be auto-resumed into — forget it immediately.
+  useEffect(() => { clearLastRoom(); }, []);
+
+  return (
+    <div className="win-overlay open">
+      <div className="win-card">
+        <div className="win-trophy">🏆</div>
+        <div className="win-title">{winnerName ? `${winnerName} كسب اللعبة!` : "اللعبة خلصت!"}</div>
+        <div className="win-sub">كل اللاعبين التانيين فلسوا</div>
+        <button className="btn-primary" style={{ marginTop: 20 }} onClick={() => window.location.reload()}>
+          🎲 لعبة جديدة
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function GameScreen({ gameState, myId, dispatch }: GameScreenProps) {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -54,16 +73,16 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
 
   useEffect(() => () => { if (animTimer.current) clearInterval(animTimer.current); }, []);
 
+  function handleExit() {
+    if (!confirm("متأكد عايز تخرج؟ هترجع لصفحة البداية.")) return;
+    clearLastRoom();
+    window.location.reload();
+  }
+
   if (gameState.turnPhase === "game_over") {
     const winner = gameState.players.find((p) => p.id === gameState.winnerId);
     return (
-      <div className="win-overlay open">
-        <div className="win-card">
-          <div className="win-trophy">🏆</div>
-          <div className="win-title">{winner ? `${winner.name} كسب اللعبة!` : "اللعبة خلصت!"}</div>
-          <div className="win-sub">كل اللاعبين التانيين فلسوا</div>
-        </div>
-      </div>
+      <GameOverScreen winnerName={winner?.name} />
     );
   }
 
@@ -82,6 +101,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
           <div className="topbar-right">
             <button className="icon-btn" title="الممتلكات" onClick={() => setPanel("properties")}>🏘️</button>
             <button className="icon-btn" title="الإحصائيات" onClick={() => setPanel("stats")}>📊</button>
+            <button className="icon-btn" title="اخرج من اللعبة" onClick={handleExit}>🚪</button>
           </div>
         </div>
 
