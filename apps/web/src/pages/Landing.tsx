@@ -21,7 +21,7 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
           LOGO — drop your file at apps/web/public/assets/logo.png and it
           appears here automatically, no code changes needed.
         */}
-        <img src="/assets/Logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        <img src="/assets/logo.png" alt="بنك الحظ" className="logo" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
 
         {/* <div className="brand-title">بنك الحظ</div> */}
         {/* <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
