@@ -1,22 +1,26 @@
 import { TILES, colorHex } from "@bank-el-hazz/engine";
 import type { GameState } from "@bank-el-hazz/engine";
 import Tile from "./Tile";
+import type { ReactNode } from "react";
 
-// Start bottom-left, flow clockwise — matches the RTL board reference.
+// Start top-left, flow clockwise around the outer ring.
 function posForIndex(i: number): { col: number; row: number } {
-  if (i <= 10) return { col: i + 1, row: 11 };
-  if (i <= 20) return { col: 11, row: 11 - (i - 10) };
-  if (i <= 30) return { col: 11 - (i - 20), row: 1 };
-  return { col: 1, row: 1 + (i - 30) };
+  if (i <= 10) return { col: i + 1, row: 1 };
+  if (i <= 20) return { col: 11, row: i - 10 + 1 };
+  if (i <= 30) return { col: 11 - (i - 20), row: 11 };
+  return { col: 1, row: 11 - (i - 30) };
 }
 
 interface BoardProps {
   gameState: GameState;
   rollingDice?: { d1: number; d2: number } | null; // client-side animation override, while a roll is in flight
   onTileClick?: (index: number) => void;
+  centerPanel?: ReactNode;
+  displayedPositions?: Record<string, number>;
+  tokTokSelectedIndex?: number | null;
 }
 
-export default function Board({ gameState, rollingDice, onTileClick }: BoardProps) {
+export default function Board({ gameState, rollingDice, onTileClick, centerPanel, displayedPositions, tokTokSelectedIndex }: BoardProps) {
   const shown = rollingDice ?? gameState.lastRollDetail ?? { d1: 1, d2: 1 };
 
   return (
@@ -28,8 +32,12 @@ export default function Board({ gameState, rollingDice, onTileClick }: BoardProp
             const ownerId = gameState.ownedBy[tile.name];
             const owner = ownerId ? gameState.players.find((p) => p.id === ownerId) : undefined;
             const tokenColors = gameState.players
-              .filter((p) => !p.bankrupt && p.pos === i)
+              .filter((p) => !p.bankrupt && (displayedPositions?.[p.id] ?? p.pos) === i)
               .map((p) => colorHex(p.color));
+            const tokTokActive = gameState.turnPhase === "awaiting_toktok_choice";
+            const isSelectable = tokTokActive && gameState.pendingTileIndex !== null && i !== gameState.pendingTileIndex;
+            const isCurrentTile = gameState.pendingTileIndex === i;
+            const isSelectedTile = tokTokSelectedIndex === i;
 
             return (
               <div key={tile.name + i} style={{ gridColumn: col, gridRow: row }}>
@@ -38,6 +46,9 @@ export default function Board({ gameState, rollingDice, onTileClick }: BoardProp
                   ownerColor={owner ? colorHex(owner.color) : null}
                   houses={gameState.houses[tile.name] || 0}
                   tokenColors={tokenColors}
+                  selectable={isSelectable}
+                  selected={isCurrentTile || isSelectedTile}
+                  disabled={tokTokActive && !isSelectable}
                   onClick={() => onTileClick?.(i)}
                 />
               </div>
@@ -45,6 +56,7 @@ export default function Board({ gameState, rollingDice, onTileClick }: BoardProp
           })}
 
           <div className="board-center" style={{ gridColumn: "2 / 11", gridRow: "2 / 11" }}>
+            {centerPanel}
             <div className="bank-icon">
               <svg width="110" height="66" viewBox="0 0 120 72">
                 <polygon points="60,4 112,26 8,26" fill="#e0c060" />

@@ -1,6 +1,6 @@
 import { TILES, EVENT_POOLS, GROUPS, tileByName } from "./board";
 import type {
-  GameState, Player, Tile, PropertyTile, GameAction, GameEventCard, PlayerColor,
+  GameState, Player, Tile, PropertyTile, RailOrUtilTile, GameAction, GameEventCard, PlayerColor,
 } from "./types";
 
 const STARTING_COINS = 1500;
@@ -33,6 +33,7 @@ export function createInitialState(
     turnPhase: "awaiting_roll",
     pendingTileIndex: null,
     pendingEvent: null,
+    pendingTrade: null,
     winnerId: null,
     log: [],
   };
@@ -59,6 +60,10 @@ export function isBuyable(tile: Tile): tile is PropertyTile | (Tile & { price: n
 
 export function currentPlayer(state: GameState): Player {
   return state.players[state.currentPlayerIndex];
+}
+
+function rolledDouble(state: GameState): boolean {
+  return state.lastRollDetail !== null && state.lastRollDetail.d1 === state.lastRollDetail.d2;
 }
 
 export function activePlayers(state: GameState): Player[] {
@@ -98,8 +103,8 @@ export function calcRent(state: GameState, tileName: string, roll: number): { am
   }
   if (tile.type === "util") {
     const owned = TILES.filter((t) => t.type === "util" && state.ownedBy[t.name] === ownerId).length;
-    const mult = owned >= 2 ? 10 : 4;
-    return { amount: mult * roll, desc: `${owned >= 2 ? "المرفقين مملوكين (×10 النرد)" : "مرفق واحد (×4 النرد)"}` };
+    const mult = owned >= 2 ? 16 : 8;
+    return { amount: mult * roll, desc: `${owned >= 2 ? "المرفقين مملوكين (×16 النرد)" : "مرفق واحد (×8 النرد)"}` };
   }
   // prop
   const base = rentBase(tile as PropertyTile);
@@ -173,6 +178,12 @@ function resolveLanding(state: GameState, tileIndex: number) {
   const tile = TILES[tileIndex];
   const player = currentPlayer(state);
 
+  if (tile.type === "toktok") {
+    state.pendingTileIndex = tileIndex;
+    state.turnPhase = "awaiting_toktok_choice";
+    return;
+  }
+
   if (isBuyable(tile)) {
     const ownerId = state.ownedBy[tile.name];
     if (!ownerId) {
@@ -193,12 +204,12 @@ function resolveLanding(state: GameState, tileIndex: number) {
       }
       player.coins -= rent.amount;
       owner.coins += rent.amount;
-      log(state, `${player.name} دفع ${rent.amount} جنيه إيجار لـ ${owner.name} (${tile.name}). ${rent.desc}`);
+      log(state, `${player.name} دفع ${rent.amount} جنيه إيجار لـ ${owner.name} (${tile.displayName ?? tile.name}). ${rent.desc}`);
       state.turnPhase = "awaiting_rent_ack";
       return;
     }
     log(state, `${player.name} على أرضه — آمن!`);
-    advanceTurn(state);
+    state.turnPhase = "player_turn";
     return;
   }
 
@@ -231,7 +242,10 @@ function resolveLanding(state: GameState, tileIndex: number) {
   }
 
   // corner / start — no effect beyond the GO bonus already applied on move
-  advanceTurn(state);
+  state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
+  if (state.turnPhase !== "awaiting_roll") {
+    advanceTurn(state);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -261,7 +275,8 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
         log(state, `${actor.name} فات على الانطلاق — +${GO_BONUS} جنيه!`);
       }
       actor.pos = newPos;
-      log(state, `${actor.name} رمى ${d1}+${d2}=${total} وتحرك لـ ${TILES[newPos].name}`);
+      const destinationLabel = TILES[newPos].displayName ?? TILES[newPos].name;
+      log(state, `${actor.name} رمى ${d1}+${d2}=${total} وتحرك لـ ${destinationLabel}`);
       resolveLanding(state, newPos);
       return state;
     }
@@ -273,22 +288,152 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       actor.coins -= tile.price;
       state.ownedBy[tile.name] = actor.id;
       actor.props.push(tile.name);
-      log(state, `${actor.name} اشترى ${tile.name} بـ ${tile.price} جنيه!`);
+      log(state, `${actor.name} اشترى ${tile.displayName ?? tile.name} بـ ${tile.price} جنيه!`);
       state.pendingTileIndex = null;
-      advanceTurn(state);
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
       return state;
     }
 
     case "SKIP_PURCHASE": {
       if (state.turnPhase !== "awaiting_buy_decision" || currentPlayer(state).id !== actor.id) return state;
       state.pendingTileIndex = null;
-      advanceTurn(state);
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
+      return state;
+    }
+
+    case "SELL_PROPERTY": {
+      if (currentPlayer(state).id !== actor.id) return state;
+      const tile = tileByName(action.tileName) as PropertyTile | RailOrUtilTile;
+      if (state.ownedBy[tile.name] !== actor.id) return state;
+
+      const refund = Math.floor(tile.price / 2);
+      actor.coins += refund;
+      delete state.ownedBy[tile.name];
+      actor.props = actor.props.filter((name) => name !== tile.name);
+      if (tile.type === "prop") {
+        state.houses[tile.name] = 0;
+      }
+      log(state, `${actor.name} باع ${tile.displayName ?? tile.name} بمبلغ ${refund} جنيه!`);
+      return state;
+    }
+
+    case "TRADE_PROPERTY": {
+      const tile = tileByName(action.tileName) as PropertyTile | RailOrUtilTile;
+      if (state.ownedBy[tile.name] !== actor.id) return state;
+
+      const target = state.players.find((p) => p.id === action.targetPlayerId);
+      if (!target || target.bankrupt || target.id === actor.id) return state;
+
+      const cash = Math.max(0, Math.floor(action.cash));
+      if (target.coins < cash) return state;
+
+      state.ownedBy[tile.name] = target.id;
+      actor.props = actor.props.filter((name) => name !== tile.name);
+      target.props.push(tile.name);
+      actor.coins += cash;
+      target.coins -= cash;
+      log(state, `${actor.name} باع ${tile.displayName ?? tile.name} لـ ${target.name} بمبلغ ${cash} جنيه.`);
+      return state;
+    }
+
+    case "REQUEST_TRADE": {
+      const target = state.players.find((p) => p.id === action.targetPlayerId);
+      if (!target || target.bankrupt || target.id === actor.id) return state;
+
+      const giveTileNames = [...new Set(action.giveTileNames ?? [])];
+      const takeTileNames = [...new Set(action.takeTileNames ?? [])];
+      const giveCash = Math.max(0, Math.floor(action.giveCash ?? 0));
+      const takeCash = Math.max(0, Math.floor(action.takeCash ?? 0));
+
+      if (giveTileNames.some((name) => state.ownedBy[name] !== actor.id)) return state;
+      if (takeTileNames.some((name) => state.ownedBy[name] !== target.id)) return state;
+      if (giveTileNames.some((name) => takeTileNames.includes(name))) return state;
+      if (actor.coins < giveCash || target.coins < takeCash) return state;
+
+      state.pendingTrade = {
+        playerId: actor.id,
+        targetPlayerId: target.id,
+        giveTileNames,
+        takeTileNames,
+        giveCash,
+        takeCash,
+      };
+      state.turnPhase = "player_turn";
+      log(state, `${actor.name} طلب تجارة مع ${target.name}. بانتظار موافقة ${target.name}.`);
+      return state;
+    }
+
+    case "ACCEPT_TRADE": {
+      if (!state.pendingTrade || state.pendingTrade.targetPlayerId !== actor.id) return state;
+
+      const { playerId: sellerId, targetPlayerId, giveTileNames, takeTileNames, giveCash, takeCash } = state.pendingTrade;
+      const seller = state.players.find((p) => p.id === sellerId);
+      const target = state.players.find((p) => p.id === targetPlayerId);
+      if (!seller || !target || seller.bankrupt || target.bankrupt) return state;
+
+      if (giveTileNames.some((name) => state.ownedBy[name] !== sellerId)) return state;
+      if (takeTileNames.some((name) => state.ownedBy[name] !== targetPlayerId)) return state;
+      if (seller.coins < giveCash || target.coins < takeCash) return state;
+
+      giveTileNames.forEach((tileName) => {
+        state.ownedBy[tileName] = targetPlayerId;
+        seller.props = seller.props.filter((name) => name !== tileName);
+        if (!target.props.includes(tileName)) target.props.push(tileName);
+      });
+
+      takeTileNames.forEach((tileName) => {
+        state.ownedBy[tileName] = sellerId;
+        target.props = target.props.filter((name) => name !== tileName);
+        if (!seller.props.includes(tileName)) seller.props.push(tileName);
+      });
+
+      seller.coins -= giveCash;
+      seller.coins += takeCash;
+      target.coins -= takeCash;
+      target.coins += giveCash;
+
+      log(state, `${target.name} وافق على التجارة مع ${seller.name}.`);
+      state.pendingTrade = null;
+      return state;
+    }
+
+    case "REJECT_TRADE": {
+      if (!state.pendingTrade || state.pendingTrade.targetPlayerId !== actor.id) return state;
+      log(state, `${actor.name} رفضت تجارة ${state.pendingTrade.playerId}.`);
+      state.pendingTrade = null;
+      return state;
+    }
+
+    case "USE_TOKTOK": {
+      if (state.turnPhase !== "awaiting_toktok_choice" || state.pendingTileIndex === null) return state;
+      if (currentPlayer(state).id !== actor.id) return state;
+      if (actor.coins < 50) return state;
+
+      const targetIndex = action.targetIndex;
+      if (targetIndex < 0 || targetIndex >= TILES.length) return state;
+
+      actor.coins -= 50;
+      actor.pos = targetIndex;
+      state.pendingTileIndex = null;
+      const tokTokTargetLabel = TILES[targetIndex].displayName ?? TILES[targetIndex].name;
+      log(state, `${actor.name} استخدم توكتوك ودفع 50 جنيه وذهب لـ ${tokTokTargetLabel}`);
+      resolveLanding(state, targetIndex);
+      return state;
+    }
+
+    case "SKIP_TOKTOK": {
+      if (state.turnPhase !== "awaiting_toktok_choice" || state.pendingTileIndex === null) return state;
+      if (currentPlayer(state).id !== actor.id) return state;
+
+      state.pendingTileIndex = null;
+      log(state, `${actor.name} تخطى توكتوك وراح في دوره.`);
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
       return state;
     }
 
     case "ACK_RENT": {
       if (state.turnPhase !== "awaiting_rent_ack" || currentPlayer(state).id !== actor.id) return state;
-      advanceTurn(state);
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
       return state;
     }
 
@@ -306,6 +451,16 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
         state.turnPhase = "awaiting_block_target";
         return state;
       }
+      if (ev?.type === "jail") {
+        advanceTurn(state);
+        return state;
+      }
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
+      return state;
+    }
+
+    case "END_TURN": {
+      if (state.turnPhase !== "player_turn" || currentPlayer(state).id !== actor.id) return state;
       advanceTurn(state);
       return state;
     }
@@ -316,11 +471,12 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       if (!target || target.bankrupt || target.id === actor.id) return state;
       target.skipTurns += 1;
       log(state, `🚫 ${actor.name} حظر ${target.name} لدورة واحدة!`);
-      advanceTurn(state);
+      state.turnPhase = rolledDouble(state) ? "awaiting_roll" : "player_turn";
       return state;
     }
 
     case "BUILD_HOUSE": {
+      if (currentPlayer(state).id !== actor.id) return state;
       const tile = tileByName(action.tileName) as PropertyTile;
       if (state.ownedBy[tile.name] !== actor.id) return state;
       if (!hasMonopoly(state, actor.id, tile.group)) return state;
@@ -329,7 +485,7 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       if (actor.coins < cost || level >= 5) return state;
       actor.coins -= cost;
       state.houses[tile.name] = level + 1;
-      log(state, `🏠 ${actor.name} بنى على ${tile.name} (مستوى ${level + 1})`);
+      log(state, `🏠 ${actor.name} بنى على ${tile.displayName ?? tile.name} (مستوى ${level + 1})`);
       return state;
     }
 

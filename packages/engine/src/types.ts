@@ -4,11 +4,12 @@
 // on a server, or on a phone.
 // ============================================================================
 
-export type TileType = "start" | "prop" | "rail" | "util" | "event" | "corner";
+export type TileType = "start" | "prop" | "rail" | "util" | "event" | "corner" | "toktok";
 
 export interface PropertyTile {
   index: number;
   name: string;
+  displayName?: string;
   type: "prop";
   group: string;
   price: number;
@@ -17,6 +18,7 @@ export interface PropertyTile {
 export interface RailOrUtilTile {
   index: number;
   name: string;
+  displayName?: string;
   type: "rail" | "util";
   price: number;
 }
@@ -24,6 +26,7 @@ export interface RailOrUtilTile {
 export interface EventTile {
   index: number;
   name: string;
+  displayName?: string;
   type: "event";
   pool: "luck" | "chest";
 }
@@ -31,10 +34,18 @@ export interface EventTile {
 export interface SimpleTile {
   index: number;
   name: string;
+  displayName?: string;
   type: "start" | "corner";
 }
 
-export type Tile = PropertyTile | RailOrUtilTile | EventTile | SimpleTile;
+export interface ToktokTile {
+  index: number;
+  name: string;
+  displayName?: string;
+  type: "toktok";
+}
+
+export type Tile = PropertyTile | RailOrUtilTile | EventTile | SimpleTile | ToktokTile;
 
 export type GameEventType = "coins" | "jail" | "block";
 
@@ -61,6 +72,15 @@ export interface Player {
   connected: boolean;   // false while a disconnected player's grace period is running
 }
 
+export interface TradeProposal {
+  playerId: string;
+  targetPlayerId: string;
+  giveTileNames: string[];
+  takeTileNames: string[];
+  giveCash: number;
+  takeCash: number;
+}
+
 export interface GameState {
   players: Player[];
   currentPlayerIndex: number;
@@ -71,6 +91,7 @@ export interface GameState {
   turnPhase: TurnPhase;
   pendingTileIndex: number | null;   // tile awaiting a decision (buy prompt, etc.)
   pendingEvent: GameEventCard | null;
+  pendingTrade: TradeProposal | null;
   winnerId: string | null;
   log: string[];                     // recent human-readable events, newest first
 }
@@ -80,8 +101,10 @@ export interface GameState {
 // invents its own notion of game phase.
 export type TurnPhase =
   | "awaiting_roll"
+  | "player_turn"
   | "moving"
   | "awaiting_buy_decision"
+  | "awaiting_toktok_choice"
   | "awaiting_event_ack"
   | "awaiting_rent_ack"
   | "awaiting_bankrupt_ack"
@@ -94,7 +117,23 @@ export type GameAction =
   | { type: "ROLL_DICE"; playerId: string }
   | { type: "BUY_PROPERTY"; playerId: string }
   | { type: "SKIP_PURCHASE"; playerId: string }
+  | { type: "SELL_PROPERTY"; playerId: string; tileName: string }
+  | { type: "TRADE_PROPERTY"; playerId: string; targetPlayerId: string; tileName: string; cash: number }
+  | {
+      type: "REQUEST_TRADE";
+      playerId: string;
+      targetPlayerId: string;
+      giveTileNames: string[];
+      takeTileNames: string[];
+      giveCash: number;
+      takeCash: number;
+    }
+  | { type: "ACCEPT_TRADE"; playerId: string }
+  | { type: "REJECT_TRADE"; playerId: string }
+  | { type: "USE_TOKTOK"; playerId: string; targetIndex: number }
+  | { type: "SKIP_TOKTOK"; playerId: string }
   | { type: "ACK_EVENT"; playerId: string }
+  | { type: "END_TURN"; playerId: string }
   | { type: "ACK_RENT"; playerId: string }
   | { type: "ACK_BANKRUPT"; playerId: string }
   | { type: "CHOOSE_BLOCK_TARGET"; playerId: string; targetPlayerId: string }
