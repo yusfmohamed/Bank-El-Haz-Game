@@ -40,7 +40,7 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
             const isSelectedTile = tokTokSelectedIndex === i;
 
             return (
-              <div key={tile.name + i} style={{ gridColumn: col, gridRow: row }}>
+              <div key={tile.name + i} className="tile-cell" style={{ gridColumn: col, gridRow: row }}>
                 <Tile
                   tile={tile}
                   ownerColor={owner ? colorHex(owner.color) : null}
@@ -55,20 +55,22 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
             );
           })}
 
-          <div className="board-center" style={{ gridColumn: "2 / 11", gridRow: "2 / 11" }}>
-            {centerPanel}
-            <div className="bank-icon">
-              <svg width="110" height="66" viewBox="0 0 120 72">
-                <polygon points="60,4 112,26 8,26" fill="#e0c060" />
-                <rect x="8" y="26" width="104" height="4" fill="#a8791c" />
-                {[16, 32, 48, 64, 80, 96].map((x) => (
-                  <rect key={x} x={x} y="30" width="8" height="34" fill="#f0dfa0" />
-                ))}
-                <rect x="10" y="64" width="100" height="6" fill="#a8791c" />
-              </svg>
+          <div className={`board-center${centerPanel ? " has-panel" : ""}`} style={{ gridColumn: "2 / 11", gridRow: "2 / 11" }}>
+            <div className="board-center-brand">
+              <div className="bank-icon" aria-hidden>
+                <svg width="110" height="66" viewBox="0 0 120 72">
+                  <polygon points="60,4 112,26 8,26" fill="#e0c060" />
+                  <rect x="8" y="26" width="104" height="4" fill="#a8791c" />
+                  {[16, 32, 48, 64, 80, 96].map((x) => (
+                    <rect key={x} x={x} y="30" width="8" height="34" fill="#f0dfa0" />
+                  ))}
+                  <rect x="10" y="64" width="100" height="6" fill="#a8791c" />
+                </svg>
+              </div>
+              <h1 className="board-title">بنك الحظ</h1>
+              <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
             </div>
-            <h1 className="board-title">بنك الحظ</h1>
-            <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
+            {centerPanel && <div className="board-center-panel">{centerPanel}</div>}
             <div className={`dice-wrap ${rollingDice ? "dice-rolling" : ""}`}>
               <Die value={shown.d1} />
               <Die value={shown.d2} />
