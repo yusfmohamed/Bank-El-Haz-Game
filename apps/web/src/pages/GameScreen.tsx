@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState, GameAction } from "@bank-el-hazz/engine";
-import { TILES } from "@bank-el-hazz/engine";
+import { TILES, groupHasBuildings } from "@bank-el-hazz/engine";
 import { clearLastRoom } from "../lib/identity";
 import Board from "../components/Board";
 import PlayerStrip from "../components/PlayerStrip";
@@ -20,6 +20,18 @@ interface GameScreenProps {
 }
 
 const ROLL_ANIM_MS = 650;
+
+function tileDisplayName(tileName: string) {
+  return TILES.find((tile) => tile.name === tileName)?.displayName ?? tileName;
+}
+
+function formatMoney(amount: number) {
+  return `${amount.toLocaleString()} جنيه`;
+}
+
+function formatTileList(tileNames: string[]) {
+  return tileNames.length > 0 ? tileNames.map(tileDisplayName).join("، ") : "لا شيء";
+}
 
 function GameOverScreen({ winnerName }: { winnerName?: string }) {
   // A finished game should never be auto-resumed into — forget it immediately.
@@ -47,6 +59,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   const canEndTurn = isMyTurn && gameState.turnPhase === "player_turn";
   const canTrade = !!myId && tradeTargets.length > 0;
   const canBankrupt = isMyTurn && gameState.turnPhase === "player_turn";
+  const canPayJailFine = isMyTurn && gameState.turnPhase === "awaiting_roll" && currentPlayer.inJail && currentPlayer.coins >= 50;
 
   const [panel, setPanel] = useState<"none" | "properties" | "stats">("none");
   const [propertyInfoTileIndex, setPropertyInfoTileIndex] = useState<number | null>(null);
@@ -58,10 +71,14 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   const [tradeTakeTileNames, setTradeTakeTileNames] = useState<string[]>([]);
   const [tradeGiveCash, setTradeGiveCash] = useState<number>(0);
   const [tradeTakeCash, setTradeTakeCash] = useState<number>(0);
+  const [isCounterOffer, setIsCounterOffer] = useState(false);
   const tradeTarget = gameState.players.find((p) => p.id === tradeTargetId) ?? null;
+  const incomingTrade = gameState.pendingTrade?.targetPlayerId === myId ? gameState.pendingTrade : null;
+  const incomingTradeSender = incomingTrade
+    ? gameState.players.find((p) => p.id === incomingTrade.playerId) ?? null
+    : null;
   const previousRollRef = useRef<number | null>(null);
-  const pendingMoveStartRef = useRef<number | null>(null);
-  const lastAutoInfoRollRef = useRef<number | null>(null);
+  const pendingMoveStartRef = useRef<{ playerId: string; pos: number } | null>(null);
   const movementTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function buildPath(from: number, to: number) {
@@ -117,6 +134,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   // clicked, then let the real result (already broadcast by the time the
   // animation ends, on any reasonable connection) take over.
   const [rollingDice, setRollingDice] = useState<{ d1: number; d2: number } | null>(null);
+  const canRoll = isMyTurn && gameState.turnPhase === "awaiting_roll" && !rollingDice;
   const animTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRollSeen = useRef(gameState.lastRoll);
 
@@ -143,36 +161,31 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   }, [tradeTarget?.coins]);
 
   useEffect(() => {
-    if (gameState.turnPhase !== "player_turn") {
-      lastAutoInfoRollRef.current = null;
-      return;
+    if (!gameState.pendingTrade && isCounterOffer) {
+      setIsCounterOffer(false);
     }
-
-    const landedTile = TILES[currentPlayer.pos];
-    const isBuyableTile = landedTile.type === "prop" || landedTile.type === "rail" || landedTile.type === "util";
-
-    if (!isBuyableTile || gameState.lastRoll <= 0) return;
-    if (lastAutoInfoRollRef.current === gameState.lastRoll) return;
-
-    lastAutoInfoRollRef.current = gameState.lastRoll;
-    setPropertyInfoTileIndex(currentPlayer.pos);
-  }, [currentPlayer.pos, gameState.lastRoll, gameState.turnPhase]);
+  }, [gameState.pendingTrade, isCounterOffer]);
 
   useEffect(() => {
     if (gameState.lastRoll === 0 || gameState.lastRoll === previousRollRef.current) return;
 
-    const player = gameState.players[gameState.currentPlayerIndex];
-    const from = pendingMoveStartRef.current ?? player.pos;
+    const pendingMove = pendingMoveStartRef.current;
+    const player = pendingMove
+      ? gameState.players.find((p) => p.id === pendingMove.playerId)
+      : gameState.players[gameState.currentPlayerIndex];
+    if (!player) return;
+    const from = pendingMove?.pos ?? player.pos;
     const to = player.pos;
     if (from !== to) {
       startMoveAnimation(player.id, from, to);
     }
+    pendingMoveStartRef.current = null;
     previousRollRef.current = gameState.lastRoll;
   }, [gameState, gameState.lastRoll]);
 
   function handleRoll() {
     if (!myId || !isMyTurn || gameState.turnPhase !== "awaiting_roll") return;
-    pendingMoveStartRef.current = currentPlayer.pos;
+    pendingMoveStartRef.current = { playerId: currentPlayer.id, pos: currentPlayer.pos };
     dispatch({ type: "ROLL_DICE", playerId: myId });
 
     setRollingDice({ d1: 1, d2: 1 });
@@ -206,14 +219,63 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     );
   }
 
+  function closeTradeDialog() {
+    setTradeDialogOpen(false);
+    setIsCounterOffer(false);
+  }
+
   function openTradeDialog() {
     if (!myId) return;
+    setIsCounterOffer(false);
     setTradeTargetId(tradeTargets[0]?.id ?? "");
     setTradeGiveTileNames([]);
     setTradeTakeTileNames([]);
     setTradeGiveCash(0);
     setTradeTakeCash(0);
     setTradeDialogOpen(true);
+  }
+
+  function openCounterTrade() {
+    if (!myId || !incomingTrade) return;
+    setTradeTargetId(incomingTrade.playerId);
+    setTradeGiveTileNames(incomingTrade.takeTileNames.filter((name) => {
+      const tile = TILES.find((t) => t.name === name);
+      return tile ? !isTradeLocked(tile) : false;
+    }));
+    setTradeTakeTileNames(incomingTrade.giveTileNames.filter((name) => {
+      const tile = TILES.find((t) => t.name === name);
+      return tile ? !isTradeLocked(tile) : false;
+    }));
+    setTradeGiveCash(incomingTrade.takeCash);
+    setTradeTakeCash(incomingTrade.giveCash);
+    setIsCounterOffer(true);
+    setTradeDialogOpen(true);
+  }
+
+  function submitTrade() {
+    if (!myId || !tradeTargetId) return;
+    const giveTileNames = tradeGiveTileNames.filter((name) => {
+      const tile = TILES.find((t) => t.name === name);
+      return tile ? !isTradeLocked(tile) : false;
+    });
+    const takeTileNames = tradeTakeTileNames.filter((name) => {
+      const tile = TILES.find((t) => t.name === name);
+      return tile ? !isTradeLocked(tile) : false;
+    });
+    dispatch({
+      type: "REQUEST_TRADE",
+      playerId: myId,
+      targetPlayerId: tradeTargetId,
+      giveTileNames,
+      takeTileNames,
+      giveCash: tradeGiveCash,
+      takeCash: tradeTakeCash,
+    });
+    closeTradeDialog();
+  }
+
+  function isTradeLocked(tile: (typeof TILES)[number]) {
+    return tile.type === "prop" && groupHasBuildings(gameState, tile.group);
   }
 
   if (gameState.turnPhase === "game_over") {
@@ -232,11 +294,40 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
       onClose={() => setPropertyInfoTileIndex(null)}
       inline
     />
+  ) : currentPlayer.inJail && gameState.turnPhase === "awaiting_roll" ? (
+    <div className="board-inline-panel jail-panel">
+      <div className="modal-title" style={{ marginBottom: 0 }}>السجن</div>
+      <div className="modal-sub" style={{ marginBottom: 0 }}>
+        {isMyTurn
+          ? `انت في السجن. ارمِ نفس الرقم للخروج، أو ادفع 50 جنيه. بعد محاولتين فاشلتين، المحاولة التالتة بتخرجك.`
+          : `${currentPlayer.name} في السجن وبيحاول يخرج.`}
+      </div>
+      <div className="info-row">
+        <span>المحاولات الفاشلة</span>
+        <strong>{currentPlayer.jailAttempts} / 2</strong>
+      </div>
+      {isMyTurn && myId ? (
+        <div className="modal-btns">
+          <button
+            className="btn-buy"
+            disabled={!canPayJailFine}
+            onClick={() => dispatch({ type: "PAY_JAIL_FINE", playerId: myId })}
+          >
+            ادفع 50 جنيه
+          </button>
+          <button className="btn-skip" disabled={!canRoll} onClick={handleRoll}>
+            ارمِ للخروج
+          </button>
+        </div>
+      ) : (
+        <div className="waiting-note">في انتظار دور {currentPlayer.name}...</div>
+      )}
+    </div>
   ) : gameState.turnPhase === "awaiting_buy_decision" && gameState.pendingTileIndex !== null ? (
     <BuyModal gameState={gameState} myId={myId} isMyTurn={isMyTurn} dispatch={dispatch} inline />
   ) : gameState.turnPhase === "awaiting_toktok_choice" ? (
     <div className="board-inline-panel">
-      <div className="modal-title" style={{ marginBottom: 0 }}>🛺 TokTok</div>
+      <div className="modal-title" style={{ marginBottom: 0 }}>🛺 توكتوك</div>
       <div className="modal-sub" style={{ marginBottom: 0 }}>
         {toktokTargetIndex !== null
           ? `المكان المختار: ${TILES[toktokTargetIndex].displayName ?? TILES[toktokTargetIndex].name}`
@@ -270,6 +361,30 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     <BlockModal gameState={gameState} myId={myId} isMyTurn={isMyTurn} dispatch={dispatch} inline />
   ) : null;
 
+  const centerControls = (
+    <div className="turn-action-dock" aria-label="Turn actions">
+      <button
+        className="turn-action-btn turn-action-primary"
+        disabled={!canRoll}
+        onClick={handleRoll}
+      >
+        <span aria-hidden>🎲</span>
+        <span>رمي النرد</span>
+      </button>
+      <button
+        className="turn-action-btn turn-action-danger"
+        disabled={!canEndTurn}
+        onClick={() => myId && dispatch({ type: "END_TURN", playerId: myId })}
+      >
+        <span aria-hidden>⏭</span>
+        <span>إنهاء الدور</span>
+      </button>
+    </div>
+  );
+
+  const tradeGiveOptions = myId ? TILES.filter((tile) => gameState.ownedBy[tile.name] === myId) : [];
+  const tradeTakeOptions = tradeTargetId ? TILES.filter((tile) => gameState.ownedBy[tile.name] === tradeTargetId) : [];
+
   return (
     <div className="game-screen">
       <div className="app-shell">
@@ -296,6 +411,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
           displayedPositions={displayedPositions}
           tokTokSelectedIndex={toktokTargetIndex}
           centerPanel={centerPanel}
+          centerControls={centerControls}
         />
 
         <div className="game-log-panel">
@@ -313,13 +429,6 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
 
         <div className="bottombar">
           <PlayerStrip gameState={gameState} myId={myId} />
-          <button
-            className="roll-btn"
-            disabled={!isMyTurn || gameState.turnPhase !== "awaiting_roll" || !!rollingDice}
-            onClick={handleRoll}
-          >
-            🎲 رمي النرد
-          </button>
           {canTrade && (
             <button
               className="btn-skip"
@@ -344,15 +453,6 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
               إفلاس
             </button>
           )}
-          {canEndTurn && (
-            <button
-              className="btn-skip"
-              style={{ minWidth: 120, background: "linear-gradient(135deg, #d94b4b, #a82727)", color: "#fff", borderColor: "#d94b4b" }}
-              onClick={() => myId && dispatch({ type: "END_TURN", playerId: myId })}
-            >
-              إنهاء الدور
-            </button>
-          )}
         </div>
 
         <div className="status-strip">
@@ -368,21 +468,31 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
 
       {tradeDialogOpen && myId && (
         <div className="overlay open">
-          <div className="modal wide">
-            <button className="close-btn" onClick={() => setTradeDialogOpen(false)}>✕</button>
-            <div className="modal-title">💱 التجارة</div>
-            <div className="modal-sub">اختر اللاعب اللي تريد تتداول معه، ثم اختار العقارات والمبالغ.</div>
+          <div className="modal wide trade-modal">
+            <button className="close-btn" onClick={closeTradeDialog} aria-label="إغلاق">X</button>
+            <div className="trade-modal-head">
+              <div>
+                <div className="modal-title">{isCounterOffer ? "فصال" : "التجارة"}</div>
+                <div className="modal-sub">
+                  {isCounterOffer
+                    ? `عدّل العرض وابعته لـ ${tradeTarget?.name ?? "اللاعب"} كفصال جديد.`
+                    : "اختار اللاعب، ثم حدد العقارات والمبالغ من الناحيتين."}
+                </div>
+              </div>
+              {isCounterOffer && <span className="trade-badge">عرض مضاد</span>}
+            </div>
 
-            <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span>اختر اللاعب</span>
+            <div className="trade-panel">
+              <label className="trade-field">
+                <span>اللاعب</span>
                 <select
+                  className="trade-select"
                   value={tradeTargetId}
+                  disabled={isCounterOffer}
                   onChange={(e) => {
                     setTradeTargetId(e.target.value);
                     setTradeTakeTileNames([]);
                   }}
-                  style={{ padding: 8, borderRadius: 8 }}
                 >
                   {tradeTargets.length === 0 ? (
                     <option value="">لا يوجد لاعبين</option>
@@ -394,28 +504,41 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
                 </select>
               </label>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-                <div>
-                  <div className="modal-title" style={{ fontSize: 18, marginBottom: 8 }}>أعطي</div>
-                  {TILES.filter((tile) => gameState.ownedBy[tile.name] === myId).length === 0 ? (
+              <div className="trade-columns">
+                <section className="trade-box">
+                  <div className="trade-box-title">
+                    <span>أعطي</span>
+                    <strong>{formatMoney(tradeGiveCash)}</strong>
+                  </div>
+                  {tradeGiveOptions.length === 0 ? (
                     <div className="empty-note">ما عندكش عقارات.</div>
                   ) : (
-                    <div style={{ display: "grid", gap: 8 }}>
-                      {TILES.filter((tile) => gameState.ownedBy[tile.name] === myId).map((tile) => (
-                        <label key={tile.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <input
-                            type="checkbox"
-                            checked={tradeGiveTileNames.includes(tile.name)}
-                            onChange={() => toggleTradeTile(tile.name, "give")}
-                          />
-                          <span>{tile.displayName ?? tile.name}</span>
-                        </label>
+                    <div className="trade-option-list">
+                      {tradeGiveOptions.map((tile) => (
+                        (() => {
+                          const locked = isTradeLocked(tile);
+                          return (
+                            <label
+                              key={tile.name}
+                              className={`trade-option ${tradeGiveTileNames.includes(tile.name) ? "selected" : ""} ${locked ? "locked" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                disabled={locked}
+                                checked={tradeGiveTileNames.includes(tile.name)}
+                                onChange={() => !locked && toggleTradeTile(tile.name, "give")}
+                              />
+                              <span>{tile.displayName ?? tile.name}</span>
+                              {locked && <small>بيع المباني الأول</small>}
+                            </label>
+                          );
+                        })()
                       ))}
                     </div>
                   )}
 
-                  <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
-                    <span>المبلغ اللي هتدفعه: {tradeGiveCash.toLocaleString()} جنيه</span>
+                  <label className="trade-cash">
+                    <span>المبلغ اللي هتدفعه</span>
                     <input
                       type="range"
                       min={0}
@@ -425,24 +548,37 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
                       onChange={(e) => setTradeGiveCash(Math.max(0, Number(e.target.value) || 0))}
                     />
                   </label>
-                </div>
+                </section>
 
-                <div>
-                  <div className="modal-title" style={{ fontSize: 18, marginBottom: 8 }}>آخذ</div>
+                <section className="trade-box trade-box-take">
+                  <div className="trade-box-title">
+                    <span>آخذ</span>
+                    <strong>{formatMoney(tradeTakeCash)}</strong>
+                  </div>
                   {tradeTargetId ? (
-                    TILES.filter((tile) => gameState.ownedBy[tile.name] === tradeTargetId).length === 0 ? (
+                    tradeTakeOptions.length === 0 ? (
                       <div className="empty-note">اللاعب المختار ما عندوش عقارات.</div>
                     ) : (
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {TILES.filter((tile) => gameState.ownedBy[tile.name] === tradeTargetId).map((tile) => (
-                          <label key={tile.name} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <input
-                              type="checkbox"
-                              checked={tradeTakeTileNames.includes(tile.name)}
-                              onChange={() => toggleTradeTile(tile.name, "take")}
-                            />
-                            <span>{tile.displayName ?? tile.name}</span>
-                          </label>
+                      <div className="trade-option-list">
+                        {tradeTakeOptions.map((tile) => (
+                          (() => {
+                            const locked = isTradeLocked(tile);
+                            return (
+                              <label
+                                key={tile.name}
+                                className={`trade-option ${tradeTakeTileNames.includes(tile.name) ? "selected" : ""} ${locked ? "locked" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  disabled={locked}
+                                  checked={tradeTakeTileNames.includes(tile.name)}
+                                  onChange={() => !locked && toggleTradeTile(tile.name, "take")}
+                                />
+                                <span>{tile.displayName ?? tile.name}</span>
+                                {locked && <small>بيع المباني الأول</small>}
+                              </label>
+                            );
+                          })()
                         ))}
                       </div>
                     )
@@ -450,8 +586,8 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
                     <div className="empty-note">اختر لاعب أول.</div>
                   )}
 
-                  <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
-                    <span>المبلغ اللي هتاخده: {tradeTakeCash.toLocaleString()} جنيه</span>
+                  <label className="trade-cash">
+                    <span>المبلغ اللي هتاخده</span>
                     <input
                       type="range"
                       min={0}
@@ -461,55 +597,56 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
                       onChange={(e) => setTradeTakeCash(Math.max(0, Number(e.target.value) || 0))}
                     />
                   </label>
-                </div>
+                </section>
               </div>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+              <div className="trade-actions">
                 <button
                   className="btn-buy"
                   disabled={!tradeTargetId}
-                  onClick={() => {
-                    if (!myId || !tradeTargetId) return;
-                    dispatch({
-                      type: "REQUEST_TRADE",
-                      playerId: myId,
-                      targetPlayerId: tradeTargetId,
-                      giveTileNames: tradeGiveTileNames,
-                      takeTileNames: tradeTakeTileNames,
-                      giveCash: tradeGiveCash,
-                      takeCash: tradeTakeCash,
-                    });
-                    setTradeDialogOpen(false);
-                  }}
+                  onClick={submitTrade}
                 >
-                  تأكيد التجارة
+                  {isCounterOffer ? "إرسال الفصال" : "تأكيد التجارة"}
                 </button>
-                <button className="btn-skip" onClick={() => setTradeDialogOpen(false)}>إلغاء</button>
+                <button className="btn-skip" onClick={closeTradeDialog}>إلغاء</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {gameState.pendingTrade && gameState.pendingTrade.targetPlayerId === myId && (
+      {incomingTrade && !isCounterOffer && (
         <div className="overlay open">
-          <div className="modal wide">
-            <div className="modal-title">📩 طلب تجارة</div>
+          <div className="modal wide trade-modal">
+            <div className="modal-title">طلب تجارة</div>
             <div className="modal-sub">
-              {gameState.players.find((p) => p.id === gameState.pendingTrade?.playerId)?.name} عايز يشتري منك
+              {incomingTradeSender?.name ?? "لاعب"} بعتلك عرض. راجع اللي هتاخده واللي هتديه.
             </div>
-            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-              <div><strong>يطلع لك:</strong> {gameState.pendingTrade.takeTileNames.length > 0 ? gameState.pendingTrade.takeTileNames.map((name) => TILES.find((tile) => tile.name === name)?.displayName ?? name).join(", ") : "لا شيء"}</div>
-              <div><strong>هتدفع:</strong> {gameState.pendingTrade.giveTileNames.length > 0 ? gameState.pendingTrade.giveTileNames.map((name) => TILES.find((tile) => tile.name === name)?.displayName ?? name).join(", ") : "لا شيء"}</div>
-              <div><strong>النقد:</strong> {gameState.pendingTrade.giveCash > 0 ? `${gameState.pendingTrade.giveCash.toLocaleString()} جنيه` : "0 جنيه"}</div>
-              <div><strong>اللي هتاخده نقدًا:</strong> {gameState.pendingTrade.takeCash > 0 ? `${gameState.pendingTrade.takeCash.toLocaleString()} جنيه` : "0 جنيه"}</div>
+            <div className="trade-summary-grid">
+              <div className="trade-summary-box trade-summary-gain">
+                <span>هتاخد</span>
+                <strong>{formatTileList(incomingTrade.giveTileNames)}</strong>
+                <small>{formatMoney(incomingTrade.giveCash)}</small>
+              </div>
+              <div className="trade-summary-box trade-summary-give">
+                <span>هتدي</span>
+                <strong>{formatTileList(incomingTrade.takeTileNames)}</strong>
+                <small>{formatMoney(incomingTrade.takeCash)}</small>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+            <div className="trade-counter-note">الفصال يفتح العرض معكوس وجاهز للتعديل قبل الإرسال.</div>
+            <div className="trade-actions">
               <button
                 className="btn-buy"
                 onClick={() => myId && dispatch({ type: "ACCEPT_TRADE", playerId: myId })}
               >
                 موافقة
+              </button>
+              <button
+                className="trade-counter-btn"
+                onClick={openCounterTrade}
+              >
+                فصال
               </button>
               <button
                 className="btn-skip"

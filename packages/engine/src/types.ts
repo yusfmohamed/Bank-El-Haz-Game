@@ -69,6 +69,8 @@ export interface Player {
   props: string[];      // tile names owned
   bankrupt: boolean;
   skipTurns: number;
+  inJail: boolean;
+  jailAttempts: number;
   connected: boolean;   // false while a disconnected player's grace period is running
 }
 
@@ -88,6 +90,7 @@ export interface GameState {
   houses: Record<string, number>;    // tileName -> 0..5 (5 = hotel)
   lastRoll: number;
   lastRollDetail: { d1: number; d2: number } | null;
+  lastRollAllowsExtraTurn: boolean;
   turnPhase: TurnPhase;
   pendingTileIndex: number | null;   // tile awaiting a decision (buy prompt, etc.)
   pendingEvent: GameEventCard | null;
@@ -138,4 +141,6 @@ export type GameAction =
   | { type: "ACK_BANKRUPT"; playerId: string }
   | { type: "CHOOSE_BLOCK_TARGET"; playerId: string; targetPlayerId: string }
   | { type: "BUILD_HOUSE"; playerId: string; tileName: string }
+  | { type: "SELL_HOUSE"; playerId: string; tileName: string }
+  | { type: "PAY_JAIL_FINE"; playerId: string }
   | { type: "DECLARE_BANKRUPTCY"; playerId: string };

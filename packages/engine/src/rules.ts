@@ -5,6 +5,12 @@ import type {
 
 const STARTING_COINS = 1500;
 const GO_BONUS = 200;
+const HAGZ_SINGLE_MULTIPLIER = 8;
+const HAGZ_PAIR_MULTIPLIER = 16;
+const JAIL_INDEX = 10;
+const GO_TO_JAIL_INDEX = 30;
+const JAIL_FINE = 50;
+const FREE_ON_JAIL_ATTEMPT = 3;
 
 // ----------------------------------------------------------------------------
 // Setup
@@ -23,6 +29,8 @@ export function createInitialState(
       props: [],
       bankrupt: false,
       skipTurns: 0,
+      inJail: false,
+      jailAttempts: 0,
       connected: true,
     })),
     currentPlayerIndex: 0,
@@ -30,6 +38,7 @@ export function createInitialState(
     houses: {},
     lastRoll: 0,
     lastRollDetail: null,
+    lastRollAllowsExtraTurn: false,
     turnPhase: "awaiting_roll",
     pendingTileIndex: null,
     pendingEvent: null,
@@ -62,8 +71,12 @@ export function currentPlayer(state: GameState): Player {
   return state.players[state.currentPlayerIndex];
 }
 
-function rolledDouble(state: GameState): boolean {
+function rolledDoubleFromDetail(state: GameState): boolean {
   return state.lastRollDetail !== null && state.lastRollDetail.d1 === state.lastRollDetail.d2;
+}
+
+function rolledDouble(state: GameState): boolean {
+  return state.lastRollAllowsExtraTurn === true;
 }
 
 export function activePlayers(state: GameState): Player[] {
@@ -78,6 +91,30 @@ export function hasMonopoly(state: GameState, playerId: string, group: string | 
   if (!group) return false;
   const props = TILES.filter((t) => t.type === "prop" && (t as PropertyTile).group === group);
   return props.length > 0 && props.every((t) => state.ownedBy[t.name] === playerId);
+}
+
+export function groupHasBuildings(state: GameState, group: string | undefined): boolean {
+  if (!group) return false;
+  return TILES.some((t) =>
+    t.type === "prop" &&
+    (t as PropertyTile).group === group &&
+    (state.houses[t.name] || 0) > 0
+  );
+}
+
+function tileLockedByGroupBuildings(state: GameState, tileName: string): boolean {
+  const tile = tileByName(tileName);
+  return tile.type === "prop" && groupHasBuildings(state, tile.group);
+}
+
+function normalizeState(state: GameState) {
+  if (typeof state.lastRollAllowsExtraTurn !== "boolean") {
+    state.lastRollAllowsExtraTurn = rolledDoubleFromDetail(state);
+  }
+  state.players.forEach((player) => {
+    player.inJail ??= false;
+    player.jailAttempts ??= 0;
+  });
 }
 
 export function netWorth(state: GameState, player: Player): number {
@@ -99,12 +136,18 @@ export function calcRent(state: GameState, tileName: string, roll: number): { am
   if (tile.type === "rail") {
     const owned = TILES.filter((t) => t.type === "rail" && state.ownedBy[t.name] === ownerId).length;
     const scale: Record<number, number> = { 1: 25, 2: 50, 3: 100, 4: 200 };
-    return { amount: scale[owned] || 25, desc: `${owned} محطة قطار مملوكة` };
+    return { amount: scale[owned] || 25, desc: `${owned} مطار مملوك` };
   }
   if (tile.type === "util") {
     const owned = TILES.filter((t) => t.type === "util" && state.ownedBy[t.name] === ownerId).length;
-    const mult = owned >= 2 ? 16 : 8;
-    return { amount: mult * roll, desc: `${owned >= 2 ? "المرفقين مملوكين (×16 النرد)" : "مرفق واحد (×8 النرد)"}` };
+    const rollTotal = state.lastRollDetail ? state.lastRollDetail.d1 + state.lastRollDetail.d2 : roll;
+    const multiplier = owned >= 2 ? HAGZ_PAIR_MULTIPLIER : HAGZ_SINGLE_MULTIPLIER;
+    return {
+      amount: multiplier * rollTotal,
+      desc: owned >= 2
+        ? `الحجزين مع نفس المالك (×${HAGZ_PAIR_MULTIPLIER} مجموع النرد ${rollTotal})`
+        : `حجز واحد مع المالك (×${HAGZ_SINGLE_MULTIPLIER} مجموع النرد ${rollTotal})`,
+    };
   }
   // prop
   const base = rentBase(tile as PropertyTile);
@@ -131,9 +174,20 @@ function log(state: GameState, msg: string) {
   if (state.log.length > 50) state.log.pop();
 }
 
+function sendPlayerToJail(state: GameState, player: Player, reason: string) {
+  player.pos = JAIL_INDEX;
+  player.inJail = true;
+  player.jailAttempts = 0;
+  state.lastRollAllowsExtraTurn = false;
+  state.pendingTileIndex = null;
+  log(state, `🚔 ${player.name} ${reason} وراح السجن.`);
+}
+
 function goBankrupt(state: GameState, player: Player, creditorId: string | null) {
   if (player.bankrupt) return;
   player.bankrupt = true;
+  player.inJail = false;
+  player.jailAttempts = 0;
   const creditor = creditorId ? state.players.find((p) => p.id === creditorId) : undefined;
   player.props.forEach((name) => {
     if (creditor) {
@@ -160,6 +214,7 @@ function checkWin(state: GameState) {
 }
 
 function advanceTurn(state: GameState) {
+  state.lastRollAllowsExtraTurn = false;
   do {
     state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
   } while (state.players[state.currentPlayerIndex].bankrupt);
@@ -181,6 +236,12 @@ function resolveLanding(state: GameState, tileIndex: number) {
   if (tile.type === "toktok") {
     state.pendingTileIndex = tileIndex;
     state.turnPhase = "awaiting_toktok_choice";
+    return;
+  }
+
+  if (tile.index === GO_TO_JAIL_INDEX) {
+    sendPlayerToJail(state, player, "اتقبض عليه");
+    advanceTurn(state);
     return;
   }
 
@@ -231,8 +292,7 @@ function resolveLanding(state: GameState, tileIndex: number) {
       return;
     }
     if (ev.type === "jail") {
-      player.skipTurns += 1;
-      log(state, `${ev.icon} ${player.name}: ${ev.title}`);
+      sendPlayerToJail(state, player, "اتسحب بكارت الشرطة");
       state.turnPhase = "awaiting_event_ack";
       return;
     }
@@ -255,6 +315,7 @@ function resolveLanding(state: GameState, tileIndex: number) {
 
 export function applyAction(prevState: GameState, action: GameAction, rng: () => number = Math.random): GameState {
   const state: GameState = structuredClone(prevState);
+  normalizeState(state);
   const actor = state.players.find((p) => p.id === action.playerId);
   if (!actor || actor.bankrupt) return state; // ignore actions from unknown/bankrupt players
   if (state.turnPhase === "game_over") return state;
@@ -267,6 +328,28 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       const total = d1 + d2;
       state.lastRoll = total;
       state.lastRollDetail = { d1, d2 };
+      const isDouble = d1 === d2;
+
+      if (actor.inJail) {
+        state.lastRollAllowsExtraTurn = false;
+
+        if (isDouble) {
+          actor.inJail = false;
+          actor.jailAttempts = 0;
+          log(state, `${actor.name} رمى ${d1}+${d2} وطلع من السجن لأنه جاب نفس الرقم.`);
+        } else if (actor.jailAttempts + 1 >= FREE_ON_JAIL_ATTEMPT) {
+          actor.inJail = false;
+          actor.jailAttempts = 0;
+          log(state, `${actor.name} رمى ${d1}+${d2} وخرج من السجن في المحاولة التالتة.`);
+        } else {
+          actor.jailAttempts += 1;
+          log(state, `${actor.name} رمى ${d1}+${d2} ولسه في السجن. المحاولة ${actor.jailAttempts} من 2.`);
+          advanceTurn(state);
+          return state;
+        }
+      } else {
+        state.lastRollAllowsExtraTurn = isDouble;
+      }
 
       const oldPos = actor.pos;
       const newPos = (actor.pos + total) % TILES.length;
@@ -305,14 +388,12 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       if (currentPlayer(state).id !== actor.id) return state;
       const tile = tileByName(action.tileName) as PropertyTile | RailOrUtilTile;
       if (state.ownedBy[tile.name] !== actor.id) return state;
+      if (tile.type === "prop" && groupHasBuildings(state, tile.group)) return state;
 
       const refund = Math.floor(tile.price / 2);
       actor.coins += refund;
       delete state.ownedBy[tile.name];
       actor.props = actor.props.filter((name) => name !== tile.name);
-      if (tile.type === "prop") {
-        state.houses[tile.name] = 0;
-      }
       log(state, `${actor.name} باع ${tile.displayName ?? tile.name} بمبلغ ${refund} جنيه!`);
       return state;
     }
@@ -320,6 +401,7 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
     case "TRADE_PROPERTY": {
       const tile = tileByName(action.tileName) as PropertyTile | RailOrUtilTile;
       if (state.ownedBy[tile.name] !== actor.id) return state;
+      if (tile.type === "prop" && groupHasBuildings(state, tile.group)) return state;
 
       const target = state.players.find((p) => p.id === action.targetPlayerId);
       if (!target || target.bankrupt || target.id === actor.id) return state;
@@ -348,6 +430,7 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       if (giveTileNames.some((name) => state.ownedBy[name] !== actor.id)) return state;
       if (takeTileNames.some((name) => state.ownedBy[name] !== target.id)) return state;
       if (giveTileNames.some((name) => takeTileNames.includes(name))) return state;
+      if ([...giveTileNames, ...takeTileNames].some((name) => tileLockedByGroupBuildings(state, name))) return state;
       if (actor.coins < giveCash || target.coins < takeCash) return state;
 
       state.pendingTrade = {
@@ -373,6 +456,7 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
 
       if (giveTileNames.some((name) => state.ownedBy[name] !== sellerId)) return state;
       if (takeTileNames.some((name) => state.ownedBy[name] !== targetPlayerId)) return state;
+      if ([...giveTileNames, ...takeTileNames].some((name) => tileLockedByGroupBuildings(state, name))) return state;
       if (seller.coins < giveCash || target.coins < takeCash) return state;
 
       giveTileNames.forEach((tileName) => {
@@ -399,8 +483,20 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
 
     case "REJECT_TRADE": {
       if (!state.pendingTrade || state.pendingTrade.targetPlayerId !== actor.id) return state;
-      log(state, `${actor.name} رفضت تجارة ${state.pendingTrade.playerId}.`);
+      const sender = state.players.find((p) => p.id === state.pendingTrade?.playerId);
+      log(state, `${actor.name} رفض عرض التجارة من ${sender?.name ?? "لاعب"}.`);
       state.pendingTrade = null;
+      return state;
+    }
+
+    case "PAY_JAIL_FINE": {
+      if (state.turnPhase !== "awaiting_roll" || currentPlayer(state).id !== actor.id) return state;
+      if (!actor.inJail || actor.coins < JAIL_FINE) return state;
+      actor.coins -= JAIL_FINE;
+      actor.inJail = false;
+      actor.jailAttempts = 0;
+      state.lastRollAllowsExtraTurn = false;
+      log(state, `${actor.name} دفع ${JAIL_FINE} جنيه وخرج من السجن. يقدر يرمي النرد دلوقتي.`);
       return state;
     }
 
@@ -477,7 +573,8 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
 
     case "BUILD_HOUSE": {
       if (currentPlayer(state).id !== actor.id) return state;
-      const tile = tileByName(action.tileName) as PropertyTile;
+      const tile = tileByName(action.tileName);
+      if (tile.type !== "prop") return state;
       if (state.ownedBy[tile.name] !== actor.id) return state;
       if (!hasMonopoly(state, actor.id, tile.group)) return state;
       const cost = GROUPS[tile.group].houseCost;
@@ -486,6 +583,20 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       actor.coins -= cost;
       state.houses[tile.name] = level + 1;
       log(state, `🏠 ${actor.name} بنى على ${tile.displayName ?? tile.name} (مستوى ${level + 1})`);
+      return state;
+    }
+
+    case "SELL_HOUSE": {
+      if (currentPlayer(state).id !== actor.id) return state;
+      const tile = tileByName(action.tileName);
+      if (tile.type !== "prop") return state;
+      if (state.ownedBy[tile.name] !== actor.id) return state;
+      const level = state.houses[tile.name] || 0;
+      if (level <= 0) return state;
+      const refund = Math.floor(GROUPS[tile.group].houseCost / 2);
+      actor.coins += refund;
+      state.houses[tile.name] = level - 1;
+      log(state, `${actor.name} باع ${level === 5 ? "الفندق" : "بيت"} من ${tile.displayName ?? tile.name} واسترد ${refund} جنيه.`);
       return state;
     }
 

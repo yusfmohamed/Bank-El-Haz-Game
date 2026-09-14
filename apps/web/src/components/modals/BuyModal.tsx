@@ -1,6 +1,17 @@
 import { TILES, rentBase } from "@bank-el-hazz/engine";
 import type { GameState, GameAction, PropertyTile, RailOrUtilTile } from "@bank-el-hazz/engine";
 
+const GROUP_LABELS: Record<string, string> = {
+  Egypt: "مصر",
+  Spain: "إسبانيا",
+  China: "الصين",
+  "Saudi Arabia": "السعودية",
+  Qatar: "قطر",
+  Germany: "ألمانيا",
+  France: "فرنسا",
+  Italy: "إيطاليا",
+};
+
 interface BuyModalProps {
   gameState: GameState;
   myId: string | undefined;
@@ -13,18 +24,20 @@ export default function BuyModal({ gameState, myId, isMyTurn, dispatch, inline =
   if (gameState.pendingTileIndex === null) return null;
   const tile = TILES[gameState.pendingTileIndex] as PropertyTile | RailOrUtilTile;
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  const tileLabel = tile.displayName ?? tile.name;
+  const groupLabel = "group" in tile ? GROUP_LABELS[tile.group] ?? tile.group : "";
 
   let rentText: string;
   if (tile.type === "rail") rentText = "١ = ٢٥ · ٢ = ٥٠ · ٣ = ١٠٠ · ٤ = ٢٠٠ جنيه";
-  else if (tile.type === "util") rentText = "مرفق واحد = ×٨ النرد · الاتنين = ×١٦ النرد";
+  else if (tile.type === "util") rentText = "حجز واحد = ٨ × مجموع النرد · الحجزين = ١٦ × مجموع النرد";
   else rentText = `${rentBase(tile)} جنيه (يتضاعف مع الاحتكار الكامل)`;
 
   const canAfford = currentPlayer.coins >= tile.price;
 
   const content = (
     <div className={inline ? "board-inline-panel" : "modal"}>
-      <div className="modal-title">{tile.name}</div>
-      <div className="modal-sub">{"group" in tile ? tile.group : ""} · عقار للبيع</div>
+      <div className="modal-title">{tileLabel}</div>
+      <div className="modal-sub">{groupLabel ? `عقار للبيع · ${groupLabel}` : "عقار للبيع"}</div>
       <div className="modal-price">💰 <span>{tile.price.toLocaleString()}</span> جنيه</div>
       <div className="info-row"><span>الإيجار</span><strong>{rentText}</strong></div>
       <div className="info-row"><span>رصيد {currentPlayer.name}</span><strong>{currentPlayer.coins.toLocaleString()} جنيه</strong></div>

@@ -11,16 +11,25 @@ function posForIndex(i: number): { col: number; row: number } {
   return { col: 1, row: 11 - (i - 30) };
 }
 
+function sideForIndex(i: number): "top" | "right" | "bottom" | "left" | "corner" {
+  if (i === 0 || i === 10 || i === 20 || i === 30) return "corner";
+  if (i < 10) return "top";
+  if (i < 20) return "right";
+  if (i < 30) return "bottom";
+  return "left";
+}
+
 interface BoardProps {
   gameState: GameState;
   rollingDice?: { d1: number; d2: number } | null; // client-side animation override, while a roll is in flight
   onTileClick?: (index: number) => void;
   centerPanel?: ReactNode;
+  centerControls?: ReactNode;
   displayedPositions?: Record<string, number>;
   tokTokSelectedIndex?: number | null;
 }
 
-export default function Board({ gameState, rollingDice, onTileClick, centerPanel, displayedPositions, tokTokSelectedIndex }: BoardProps) {
+export default function Board({ gameState, rollingDice, onTileClick, centerPanel, centerControls, displayedPositions, tokTokSelectedIndex }: BoardProps) {
   const shown = rollingDice ?? gameState.lastRollDetail ?? { d1: 1, d2: 1 };
 
   return (
@@ -43,6 +52,7 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
               <div key={tile.name + i} className="tile-cell" style={{ gridColumn: col, gridRow: row }}>
                 <Tile
                   tile={tile}
+                  side={sideForIndex(i)}
                   ownerColor={owner ? colorHex(owner.color) : null}
                   houses={gameState.houses[tile.name] || 0}
                   tokenColors={tokenColors}
@@ -56,6 +66,7 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
           })}
 
           <div className={`board-center${centerPanel ? " has-panel" : ""}`} style={{ gridColumn: "2 / 11", gridRow: "2 / 11" }}>
+            {centerControls && <div className="board-center-actions">{centerControls}</div>}
             <div className="board-center-brand">
               <div className="bank-icon" aria-hidden>
                 <svg width="110" height="66" viewBox="0 0 120 72">

@@ -1,4 +1,4 @@
-import { TILES, GROUPS, hasMonopoly } from "@bank-el-hazz/engine";
+import { TILES, GROUPS, hasMonopoly, groupHasBuildings } from "@bank-el-hazz/engine";
 import type { GameState, GameAction, PropertyTile } from "@bank-el-hazz/engine";
 
 interface PropertiesPanelProps {
@@ -11,6 +11,7 @@ interface PropertiesPanelProps {
 export default function PropertiesPanel({ gameState, myId, dispatch, onClose }: PropertiesPanelProps) {
   const me = gameState.players.find((p) => p.id === myId);
   if (!me) return null;
+  const playerId = me.id;
 
   const owned = TILES.filter((t) => gameState.ownedBy[t.name] === myId);
 
@@ -33,29 +34,41 @@ export default function PropertiesPanel({ gameState, myId, dispatch, onClose }: 
 
               let levelText = tile.type === "rail" ? "🚄 محطة" : tile.type === "util" ? "💡 مرفق" : houses === 5 ? "🏨 فندق" : houses > 0 ? `🏠×${houses}` : "بدون بناء";
 
-              let action = null;
-              if (isProp && monop && houses < 5 && myId) {
-                const cost = GROUPS[(tile as PropertyTile).group].houseCost;
-                const label = houses === 4 ? `فندق (${cost}ج)` : `+ بيت (${cost}ج)`;
-                action = (
-                  <button
-                    className="build-btn"
-                    disabled={me.coins < cost}
-                    onClick={() => dispatch({ type: "BUILD_HOUSE", playerId: myId, tileName: tile.name })}
-                  >
-                    {label}
-                  </button>
-                );
-              } else if (isProp && !monop) {
-                action = <span className="need-monopoly-note">محتاج تجمع المنطقة كلها</span>;
-              }
+              const group = isProp ? (tile as PropertyTile).group : undefined;
+              const groupLocked = isProp ? groupHasBuildings(gameState, group) : false;
+              const houseCost = isProp ? GROUPS[(tile as PropertyTile).group].houseCost : 0;
+              const houseRefund = Math.floor(houseCost / 2);
+              const canBuild = isProp && monop && houses < 5;
+              const canSellBuilding = isProp && houses > 0;
 
               return (
                 <div key={tile.name} className="prop-row">
                   <span className="dot" style={{ background: groupColor }} />
-                  <span className="pname">{tile.name}</span>
+                  <span className="pname">{tile.displayName ?? tile.name}</span>
                   <span className="plevel">{levelText}</span>
-                  {action}
+                  {isProp && (
+                    <span className="property-actions">
+                      {canBuild && (
+                        <button
+                          className="build-btn"
+                          disabled={me.coins < houseCost}
+                          onClick={() => dispatch({ type: "BUILD_HOUSE", playerId, tileName: tile.name })}
+                        >
+                          {houses === 4 ? `ابني فندق (${houseCost}ج)` : `ابني بيت (${houseCost}ج)`}
+                        </button>
+                      )}
+                      {canSellBuilding && (
+                        <button
+                          className="build-btn sell-building-btn"
+                          onClick={() => dispatch({ type: "SELL_HOUSE", playerId, tileName: tile.name })}
+                        >
+                          {houses === 5 ? `بيع الفندق (+${houseRefund}ج)` : `بيع بيت (+${houseRefund}ج)`}
+                        </button>
+                      )}
+                      {!monop && <span className="need-monopoly-note">محتاج البلد كاملة للبناء</span>}
+                      {groupLocked && <span className="need-monopoly-note">البيع والتجارة مقفولين لحد بيع المباني</span>}
+                    </span>
+                  )}
                 </div>
               );
             })}

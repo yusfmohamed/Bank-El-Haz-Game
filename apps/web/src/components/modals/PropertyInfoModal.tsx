@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { GROUPS, TILES, rentBase } from "@bank-el-hazz/engine";
+import { GROUPS, TILES, rentBase, hasMonopoly, groupHasBuildings } from "@bank-el-hazz/engine";
 import type { GameState, GameAction, PropertyTile, RailOrUtilTile } from "@bank-el-hazz/engine";
+
+const GROUP_LABELS: Record<string, string> = {
+  Egypt: "مصر",
+  Spain: "إسبانيا",
+  China: "الصين",
+  "Saudi Arabia": "السعودية",
+  Qatar: "قطر",
+  Germany: "ألمانيا",
+  France: "فرنسا",
+  Italy: "إيطاليا",
+};
 
 interface PropertyInfoModalProps {
   gameState: GameState;
@@ -20,7 +31,6 @@ export default function PropertyInfoModal({ gameState, tileIndex, myId, dispatch
   const tile = TILES[tileIndex];
   const ownedById = gameState.ownedBy[tile.name];
   const isOwnedByMe = !!myId && ownedById === myId;
-  const isMyTurn = !!myId && gameState.players[gameState.currentPlayerIndex]?.id === myId;
   const availableTargets = gameState.players.filter((p) => p.id !== myId && !p.bankrupt);
 
   const propTile = tile.type === "prop" ? tile as PropertyTile : null;
@@ -28,35 +38,44 @@ export default function PropertyInfoModal({ gameState, tileIndex, myId, dispatch
     ? TILES.filter((t) => t.type === "prop" && (t as PropertyTile).group === propTile.group)
     : [];
   const groupColor = propTile ? GROUPS[propTile.group]?.color ?? "#888" : "#888";
+  const groupLabel = propTile ? GROUP_LABELS[propTile.group] ?? propTile.group : "";
   const baseRent = propTile ? rentBase(propTile) : 0;
+  const currentHouses = gameState.houses[tile.name] || 0;
+  const currentPlayer = myId ? gameState.players.find((p) => p.id === myId) : null;
+  const hasFullSet = !!(propTile && myId && hasMonopoly(gameState, myId, propTile.group));
+  const groupLocked = !!(propTile && groupHasBuildings(gameState, propTile.group));
+  const buildingCost = propTile ? GROUPS[propTile.group].houseCost : 0;
+  const buildingRefund = Math.floor(buildingCost / 2);
+  const canBuildHere = !!(isOwnedByMe && propTile && hasFullSet && currentHouses < 5);
+  const canSellBuildingHere = !!(isOwnedByMe && propTile && currentHouses > 0);
 
   const rentRows = propTile
     ? [
-        { label: "Rent with only this city", value: baseRent },
-        { label: "Rent with full set", value: baseRent * 2 },
-        { label: "Rent with 1 house", value: Math.round(baseRent * 3) },
-        { label: "Rent with 2 houses", value: Math.round(baseRent * 6) },
-        { label: "Rent with 3 houses", value: Math.round(baseRent * 10) },
-        { label: "Rent with 4 houses", value: Math.round(baseRent * 14) },
-        { label: "Rent with hotel", value: Math.round(baseRent * 20) },
+        { label: "إيجار المدينة فقط", value: baseRent },
+        { label: "إيجار المجموعة كاملة", value: baseRent * 2 },
+        { label: "إيجار مع بيت واحد", value: Math.round(baseRent * 3) },
+        { label: "إيجار مع بيتين", value: Math.round(baseRent * 6) },
+        { label: "إيجار مع ٣ بيوت", value: Math.round(baseRent * 10) },
+        { label: "إيجار مع ٤ بيوت", value: Math.round(baseRent * 14) },
+        { label: "إيجار مع فندق", value: Math.round(baseRent * 20) },
       ]
     : tile.type === "rail"
       ? [
-          { label: "1 airport owned", value: 25 },
-          { label: "2 airports owned", value: 50 },
-          { label: "3 airports owned", value: 100 },
-          { label: "4 airports owned", value: 200 },
+          { label: "مطار واحد مملوك", value: 25 },
+          { label: "مطاران مملوكان", value: 50 },
+          { label: "٣ مطارات مملوكة", value: 100 },
+          { label: "٤ مطارات مملوكة", value: 200 },
         ]
       : [
-          { label: "1 hagz owned", value: "8 × (5+2)" },
-          { label: "2 hagz owned", value: "16 × (5+2)" },
+          { label: "حجز واحد مع المالك", value: "٨ × مجموع النرد" },
+          { label: "الحجزين مع نفس المالك", value: "١٦ × مجموع النرد" },
         ];
 
   const saleValue = tile.type === "prop" || tile.type === "rail" || tile.type === "util" ? Math.floor(tile.price / 2) : 0;
 
   const content = (
     <div className={inline ? "board-inline-panel" : "modal wide"}>
-      {!inline && <button className="close-btn" onClick={onClose}>✕</button>}
+      <button className={inline ? "inline-close-btn" : "close-btn"} onClick={onClose} aria-label="إغلاق">X</button>
 
       <div className="modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span>{tile.displayName ?? tile.name}</span>
@@ -66,24 +85,24 @@ export default function PropertyInfoModal({ gameState, tileIndex, myId, dispatch
         {propTile && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span className="dot" style={{ background: groupColor, width: 12, height: 12, borderRadius: 999 }} />
-            <span>{propTile.group}</span>
+            <span>{groupLabel}</span>
           </div>
         )}
         <div style={{ marginTop: 6 }}>
-          Price: {(tile.type === "prop" || tile.type === "rail" || tile.type === "util") ? tile.price.toLocaleString() : 0} جنيه
+          السعر: {(tile.type === "prop" || tile.type === "rail" || tile.type === "util") ? tile.price.toLocaleString() : 0} جنيه
         </div>
       </div>
 
       {propTile && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#dcd4b0", marginBottom: 8 }}>Cities to complete the set</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#dcd4b0", marginBottom: 8 }}>مدن البلد المطلوبة للبناء</div>
           <div>
             {groupTiles.map((groupTile) => (
               <div key={groupTile.name} className="prop-row" style={{ marginBottom: 6 }}>
                 <span className="dot" style={{ background: groupColor }} />
                 <span className="pname">{groupTile.displayName ?? groupTile.name}</span>
                 <span className="plevel">
-                  {gameState.ownedBy[groupTile.name] ? "Owned" : "Need"}
+                  {gameState.ownedBy[groupTile.name] ? "مملوكة" : "مطلوبة"}
                 </span>
               </div>
             ))}
@@ -92,7 +111,7 @@ export default function PropertyInfoModal({ gameState, tileIndex, myId, dispatch
       )}
 
       <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, color: "#dcd4b0" }}>
-        {propTile ? "Rent table" : tile.type === "rail" ? "Airport rent" : "Hagz rent"}
+        {propTile ? "جدول الإيجار" : tile.type === "rail" ? "إيجار المطارات" : "إيجار الحجز"}
       </div>
       {rentRows.map((row) => (
         <div key={row.label} className="info-row">
@@ -105,54 +124,67 @@ export default function PropertyInfoModal({ gameState, tileIndex, myId, dispatch
         </div>
       ))}
 
-      <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {ownedById && (
-          <>
-            {isOwnedByMe && (
+      {ownedById && (
+        <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {isOwnedByMe && propTile && (
+            <>
               <button
-                className="btn-skip"
+                className="btn-buy"
+                disabled={!canBuildHere || (currentPlayer?.coins ?? 0) < buildingCost}
                 onClick={() => {
-                  if (myId) {
-                    dispatch({ type: "SELL_PROPERTY", playerId: myId, tileName: tile.name });
-                  }
-                  onClose();
+                  if (!myId || !canBuildHere) return;
+                  dispatch({ type: "BUILD_HOUSE", playerId: myId, tileName: tile.name });
                 }}
               >
-                Sell for {saleValue.toLocaleString()} جنيه
+                {currentHouses === 4 ? `ابني فندق (${buildingCost} جنيه)` : `ابني بيت (${buildingCost} جنيه)`}
               </button>
-            )}
-
+              <button
+                className="btn-skip"
+                disabled={!canSellBuildingHere}
+                onClick={() => {
+                  if (!myId || !canSellBuildingHere) return;
+                  dispatch({ type: "SELL_HOUSE", playerId: myId, tileName: tile.name });
+                }}
+              >
+                {currentHouses === 5 ? `بيع الفندق (+${buildingRefund} جنيه)` : `بيع بيت (+${buildingRefund} جنيه)`}
+              </button>
+            </>
+          )}
+          {isOwnedByMe && propTile && !hasFullSet && (
+            <div className="need-monopoly-note">لازم تمتلك كل مدن البلد عشان تبني.</div>
+          )}
+          {isOwnedByMe && groupLocked && (
+            <div className="need-monopoly-note">لا يمكن بيع أو تجارة أي مدينة في البلد قبل بيع كل البيوت والفنادق.</div>
+          )}
+          {isOwnedByMe && (
             <button
               className="btn-skip"
-              disabled={!isOwnedByMe}
+              disabled={groupLocked}
               onClick={() => {
-                if (!isOwnedByMe || !myId) return;
-                setTradeTargetId(availableTargets[0]?.id ?? "");
-                setTradeCash(0);
-                setTradeOpen(true);
+                if (myId) {
+                  dispatch({ type: "SELL_PROPERTY", playerId: myId, tileName: tile.name });
+                }
+                onClose();
               }}
             >
-              Trade
+              بيع العقار بـ {saleValue.toLocaleString()} جنيه
             </button>
-          </>
-        )}
+          )}
 
-        {isMyTurn && (
           <button
             className="btn-skip"
+            disabled={!isOwnedByMe || groupLocked}
             onClick={() => {
-              if (myId) {
-                dispatch({ type: "DECLARE_BANKRUPTCY", playerId: myId });
-              }
-              onClose();
+              if (!isOwnedByMe || !myId) return;
+              setTradeTargetId(availableTargets[0]?.id ?? "");
+              setTradeCash(0);
+              setTradeOpen(true);
             }}
           >
-            Bankrupt
+            تجارة
           </button>
-        )}
-
-        <button className="btn-skip" onClick={onClose}>إغلاق</button>
-      </div>
+        </div>
+      )}
 
       {tradeOpen && (
         <div style={{ marginTop: 16, borderTop: "1px solid #3a3f55", paddingTop: 16 }}>
