@@ -80,7 +80,7 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
                 </svg>
               </div>
               <img
-                src="/assets/logo.png"
+                // src="/assets/background.jpg"
                 alt="بنك الحظ"
                 className="board-logo"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
