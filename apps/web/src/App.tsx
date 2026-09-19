@@ -1,9 +1,22 @@
+import { useEffect } from "react";
 import { useGameSocket } from "./hooks/useGameSocket";
 import Landing from "./pages/Landing";
 import Room from "./pages/Room";
+import { playClick } from "./lib/sound";
 
 export default function App() {
   const { lobby, gameState, error, myId, resuming, createRoom, joinRoom, setColor, startGame, dispatch } = useGameSocket();
+
+  // One delegated listener covers every button, on every screen, forever —
+  // new buttons added later automatically get the click sound for free.
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (target.closest("button")) playClick();
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
 
   if (resuming && !lobby && !gameState) {
     return (

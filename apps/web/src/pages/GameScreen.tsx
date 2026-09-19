@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GameState, GameAction } from "@bank-el-hazz/engine";
 import { TILES, groupHasBuildings } from "@bank-el-hazz/engine";
 import { clearLastRoom } from "../lib/identity";
+import { playCoin, isSoundEnabled, setSoundEnabled } from "../lib/sound";
 import Board from "../components/Board";
 import PlayerStrip from "../components/PlayerStrip";
 import PropertiesPanel from "../components/PropertiesPanel";
@@ -80,6 +81,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   const previousRollRef = useRef<number | null>(null);
   const pendingMoveStartRef = useRef<{ playerId: string; pos: number } | null>(null);
   const movementTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [movementInProgress, setMovementInProgress] = useState(false);
 
   function buildPath(from: number, to: number) {
     const path: number[] = [];
@@ -95,6 +97,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   function startMoveAnimation(playerId: string, from: number, to: number) {
     const path = buildPath(from, to);
     if (movementTimerRef.current) clearInterval(movementTimerRef.current);
+    setMovementInProgress(true);
 
     let step = 0;
     movementTimerRef.current = setInterval(() => {
@@ -111,6 +114,10 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
             delete next[playerId];
             return next;
           });
+          // Only the notification/decision panel waits on this — it's what
+          // makes "see where you landed, then get asked what to do" actually
+          // happen in that order instead of both at once.
+          setMovementInProgress(false);
         }, 120);
       }
     }, 140);
@@ -285,7 +292,7 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     );
   }
 
-  const centerPanel = propertyInfoTileIndex !== null ? (
+  const decisionPanel = propertyInfoTileIndex !== null ? (
     <PropertyInfoModal
       gameState={gameState}
       tileIndex={propertyInfoTileIndex}
@@ -361,6 +368,65 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     <BlockModal gameState={gameState} myId={myId} isMyTurn={isMyTurn} dispatch={dispatch} inline />
   ) : null;
 
+  // ── Decision countdown ────────────────────────────────────────────────
+  // Only phases where the CURRENT player is being asked to decide something
+  // get a clock. If they don't respond in time, we dispatch a safe default
+  // so the game never gets stuck waiting on someone who stepped away.
+  const DECISION_TIMEOUT_SEC = 15;
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
+    setCountdown(null);
+
+    const timedPhases = new Set([
+      "awaiting_buy_decision", "awaiting_event_ack", "awaiting_rent_ack",
+      "awaiting_bankrupt_ack", "awaiting_block_target", "awaiting_toktok_choice",
+    ]);
+    if (!isMyTurn || !myId || movementInProgress || !timedPhases.has(gameState.turnPhase)) return;
+
+    let remaining = DECISION_TIMEOUT_SEC;
+    setCountdown(remaining);
+    countdownTimerRef.current = setInterval(() => {
+      remaining -= 1;
+      setCountdown(remaining);
+      if (remaining <= 0) {
+        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+        switch (gameState.turnPhase) {
+          case "awaiting_buy_decision": dispatch({ type: "SKIP_PURCHASE", playerId: myId }); break;
+          case "awaiting_event_ack": dispatch({ type: "ACK_EVENT", playerId: myId }); break;
+          case "awaiting_rent_ack": dispatch({ type: "ACK_RENT", playerId: myId }); break;
+          case "awaiting_bankrupt_ack": dispatch({ type: "ACK_BANKRUPT", playerId: myId }); break;
+          case "awaiting_toktok_choice": dispatch({ type: "SKIP_TOKTOK", playerId: myId }); break;
+          case "awaiting_block_target": {
+            const target = gameState.players.find((p) => p.id !== myId && !p.bankrupt);
+            if (target) dispatch({ type: "CHOOSE_BLOCK_TARGET", playerId: myId, targetPlayerId: target.id });
+            break;
+          }
+        }
+      }
+    }, 1000);
+
+    return () => { if (countdownTimerRef.current) clearInterval(countdownTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.turnPhase, isMyTurn, myId, movementInProgress]);
+
+  // The token needs to finish hopping across the board BEFORE any
+  // buy/event/rent/etc. panel appears — that's the "see where I landed,
+  // then get asked what to do" sequencing.
+  const centerPanel = movementInProgress ? null : decisionPanel ? (
+    <>
+      {countdown !== null && (
+        <div className={`decision-countdown ${countdown <= 5 ? "decision-countdown-urgent" : ""}`}>
+          ⏱ {countdown}s
+        </div>
+      )}
+      {decisionPanel}
+    </>
+  ) : null;
+
   const centerControls = (
     <div className="turn-action-dock" aria-label="Turn actions">
       <button
@@ -396,7 +462,9 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
               <div className="cur-coins">💰 {currentPlayer.coins.toLocaleString()} جنيه</div>
             </div>
           </div>
-          <div className="board-title" style={{ fontSize: 22 }}>بنك الحظ</div>
+          <div className="board-title">
+            <img src="/assets/logo.png" alt="بنك الحظ" className="board-logo" />
+          </div>
           <div className="topbar-right">
             <button className="icon-btn" title="الممتلكات" onClick={() => setPanel("properties")}>🏘️</button>
             <button className="icon-btn" title="الإحصائيات" onClick={() => setPanel("stats")}>📊</button>

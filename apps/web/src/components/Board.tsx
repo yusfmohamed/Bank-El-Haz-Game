@@ -2,6 +2,7 @@ import { TILES, colorHex } from "@bank-el-hazz/engine";
 import type { GameState } from "@bank-el-hazz/engine";
 import Tile from "./Tile";
 import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Start top-left, flow clockwise around the outer ring.
 function posForIndex(i: number): { col: number; row: number } {
@@ -78,8 +79,13 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
                   <rect x="10" y="64" width="100" height="6" fill="#a8791c" />
                 </svg>
               </div>
-              <h1 className="board-title">بنك الحظ</h1>
-              <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
+              <img
+                src="/assets/background.jpg"
+                alt="بنك الحظ"
+                className="board-logo"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+              {/* <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
             </div>
             {centerPanel && <div className="board-center-panel">{centerPanel}</div>}
             <div className={`dice-wrap ${rollingDice ? "dice-rolling" : ""}`}>
@@ -97,13 +103,57 @@ const PIP_LAYOUTS: Record<number, number[]> = {
   1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8],
 };
 
-function Die({ value }: { value: number }) {
-  const active = new Set(PIP_LAYOUTS[value] || []);
+// Which cube rotation (degrees) brings each numbered face to point at the
+// viewer. Opposite faces sum to 7, same as a real die: 1↔6, 2↔5, 3↔4.
+const FACE_ROTATION: Record<number, { x: number; y: number }> = {
+  1: { x: 0, y: 0 },
+  2: { x: 0, y: -90 },
+  3: { x: -90, y: 0 },
+  4: { x: 90, y: 0 },
+  5: { x: 0, y: 90 },
+  6: { x: 0, y: 180 },
+};
+
+function Pips({ n }: { n: number }) {
+  const active = new Set(PIP_LAYOUTS[n] || []);
   return (
-    <div className="die">
+    <>
       {Array.from({ length: 9 }).map((_, i) => (
         <span key={i} className="pip" style={{ opacity: active.has(i) ? 1 : 0 }} />
       ))}
+    </>
+  );
+}
+
+// A real cube: 6 faces positioned in 3D space, rotated so the correct face
+// points at the viewer. Works with the existing flicker-then-settle roll
+// animation unchanged — every time `value` changes (including the rapid
+// flicker updates while rolling) the cube smoothly re-targets its rotation,
+// so a fast-changing value naturally reads as tumbling, and the final
+// settled value reads as a clean landing.
+function Die({ value }: { value: number }) {
+  const spinsRef = useRef(0);
+  const prevValueRef = useRef<number | null>(null);
+  const [rot, setRot] = useState(() => FACE_ROTATION[value] ?? FACE_ROTATION[1]);
+
+  useEffect(() => {
+    if (prevValueRef.current === value) return; // don't re-spin for an unchanged value
+    prevValueRef.current = value;
+    spinsRef.current += 1; // keep adding turns so it always spins forward, never snaps back
+    const base = FACE_ROTATION[value] ?? FACE_ROTATION[1];
+    setRot({ x: base.x + spinsRef.current * 360, y: base.y + spinsRef.current * 360 });
+  }, [value]);
+
+  return (
+    <div className="dice3d-scene">
+      <div className="dice3d-cube" style={{ transform: `rotateX(${rot.x}deg) rotateY(${rot.y}deg)` }}>
+        <div className="dice3d-face dice3d-front"><Pips n={1} /></div>
+        <div className="dice3d-face dice3d-back"><Pips n={6} /></div>
+        <div className="dice3d-face dice3d-right"><Pips n={2} /></div>
+        <div className="dice3d-face dice3d-left"><Pips n={5} /></div>
+        <div className="dice3d-face dice3d-top"><Pips n={3} /></div>
+        <div className="dice3d-face dice3d-bottom"><Pips n={4} /></div>
+      </div>
     </div>
   );
 }
