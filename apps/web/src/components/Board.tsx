@@ -41,9 +41,9 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
             const { col, row } = posForIndex(i);
             const ownerId = gameState.ownedBy[tile.name];
             const owner = ownerId ? gameState.players.find((p) => p.id === ownerId) : undefined;
-            const tokenColors = gameState.players
+            const tokens = gameState.players
               .filter((p) => !p.bankrupt && (displayedPositions?.[p.id] ?? p.pos) === i)
-              .map((p) => colorHex(p.color));
+              .map((p) => ({ color: p.color, hex: colorHex(p.color), name: p.name }));
             const tokTokActive = gameState.turnPhase === "awaiting_toktok_choice";
             const isSelectable = tokTokActive && gameState.pendingTileIndex !== null && i !== gameState.pendingTileIndex;
             const isCurrentTile = gameState.pendingTileIndex === i;
@@ -56,7 +56,7 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
                   side={sideForIndex(i)}
                   ownerColor={owner ? colorHex(owner.color) : null}
                   houses={gameState.houses[tile.name] || 0}
-                  tokenColors={tokenColors}
+                  tokens={tokens}
                   selectable={isSelectable}
                   selected={isCurrentTile || isSelectedTile}
                   disabled={tokTokActive && !isSelectable}
@@ -69,23 +69,13 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
           <div className={`board-center${centerPanel ? " has-panel" : ""}`} style={{ gridColumn: "2 / 11", gridRow: "2 / 11" }}>
             {centerControls && <div className="board-center-actions">{centerControls}</div>}
             <div className="board-center-brand">
-              <div className="bank-icon" aria-hidden>
-                {/* <svg width="110" height="66" viewBox="0 0 120 72">
-                  <polygon points="60,4 112,26 8,26" fill="#e0c060" />
-                  <rect x="8" y="26" width="104" height="4" fill="#a8791c" />
-                  {[16, 32, 48, 64, 80, 96].map((x) => (
-                    <rect key={x} x={x} y="30" width="8" height="34" fill="#f0dfa0" />
-                  ))}
-                  <rect x="10" y="64" width="100" height="6" fill="#a8791c" />
-                </svg> */}
-              </div>
-              {/* <img
-                src="/assets/logo.png"
+              <img
+                src="/assets/Logo.png"
                 alt="بنك الحظ"
                 className="board-logo"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
-              <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
+              <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
             </div>
             {centerPanel && <div className="board-center-panel">{centerPanel}</div>}
             <div className={`dice-wrap ${rollingDice ? "dice-rolling" : ""}`}>

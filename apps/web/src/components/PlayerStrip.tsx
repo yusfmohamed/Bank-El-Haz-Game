@@ -1,4 +1,4 @@
-import { colorHex } from "@bank-el-hazz/engine";
+import { colorHex, playerAvatar } from "@bank-el-hazz/engine";
 import type { GameState } from "@bank-el-hazz/engine";
 
 interface PlayerStripProps {
@@ -17,8 +17,10 @@ export default function PlayerStrip({ gameState, myId }: PlayerStripProps) {
             className={`p-card ${i === gameState.currentPlayerIndex && !p.bankrupt ? "p-card-active" : ""}`}
             style={p.bankrupt ? { opacity: 0.45 } : undefined}
           >
-            <div className="p-avatar" style={{ background: `${hex}33`, border: `2px solid ${hex}` }}>
-              {p.bankrupt ? "💸" : !p.connected ? "🔌" : "👤"}
+            <div className="p-avatar" style={{ border: `2.5px solid ${hex}`, background: `${hex}22` }}>
+              <img src={playerAvatar(p.color)} alt={p.name} className="p-avatar-img" />
+              {p.bankrupt && <span className="p-avatar-badge" title="مفلس">💸</span>}
+              {!p.bankrupt && !p.connected && <span className="p-avatar-badge" title="مقطوع">🔌</span>}
             </div>
             <div>
               <div className="p-name">

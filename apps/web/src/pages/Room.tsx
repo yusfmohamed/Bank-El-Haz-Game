@@ -1,5 +1,5 @@
 import type { GameState, GameAction, PlayerColor } from "@bank-el-hazz/engine";
-import { MAX_PLAYERS, colorHex } from "@bank-el-hazz/engine";
+import { MAX_PLAYERS, colorHex, playerAvatar } from "@bank-el-hazz/engine";
 import type { LobbyInfo } from "../hooks/useGameSocket";
 import { clearLastRoom } from "../lib/identity";
 import ColorSwatchGrid from "../components/ColorSwatchGrid";
@@ -36,7 +36,27 @@ export default function Room({ lobby, gameState, myId, dispatch, onSetColor, onS
         <div style={{ marginBottom: 20 }}>
           {lobby.players.map((p) => (
             <div key={p.id} className="lobby-player-row">
-              <span className="color-swatch" style={{ background: colorHex(p.color), width: 16, height: 16 }} />
+              <span
+                className="lobby-player-avatar"
+                style={{
+                  border: `2px solid ${colorHex(p.color)}`,
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: `${colorHex(p.color)}22`,
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={playerAvatar(p.color)}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              </span>
               <span>{p.id === lobby.hostId ? "👑" : ""}</span>
               <span style={{ fontWeight: 700 }}>{p.name}</span>
               {p.id === myId && <span style={{ color: "var(--gold)", marginRight: "auto" }}>(انت)</span>}

@@ -15,6 +15,10 @@ export function colorHex(color: PlayerColor): string {
   return PLAYER_COLORS.find((c) => c.key === color)?.hex ?? "#888888";
 }
 
+export function playerAvatar(color: PlayerColor): string {
+  return `/assets/players/${color}.png`;
+}
+
 // Given colors already taken in a room, returns the requested color if it's
 // free, otherwise the first free color, otherwise null if the room is full.
 export function assignColor(taken: PlayerColor[], requested?: PlayerColor): PlayerColor | null {

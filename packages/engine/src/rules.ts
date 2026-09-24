@@ -1,6 +1,6 @@
 import { TILES, EVENT_POOLS, GROUPS, tileByName } from "./board";
 import type {
-  GameState, Player, Tile, PropertyTile, RailOrUtilTile, GameAction, GameEventCard, PlayerColor,
+  GameState, Player, Tile, PropertyTile, RailOrUtilTile, GameAction, GameEventCard, PlayerColor, TurnPhase,
 } from "./types";
 
 const STARTING_COINS = 1500;
@@ -39,6 +39,7 @@ export function createInitialState(
     lastRoll: 0,
     lastRollDetail: null,
     lastRollAllowsExtraTurn: false,
+    rollCount: 0,
     turnPhase: "awaiting_roll",
     pendingTileIndex: null,
     pendingEvent: null,
@@ -110,6 +111,9 @@ function tileLockedByGroupBuildings(state: GameState, tileName: string): boolean
 function normalizeState(state: GameState) {
   if (typeof state.lastRollAllowsExtraTurn !== "boolean") {
     state.lastRollAllowsExtraTurn = rolledDoubleFromDetail(state);
+  }
+  if (typeof state.rollCount !== "number") {
+    state.rollCount = 0;
   }
   state.players.forEach((player) => {
     player.inJail ??= false;
@@ -328,6 +332,7 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
       const total = d1 + d2;
       state.lastRoll = total;
       state.lastRollDetail = { d1, d2 };
+      state.rollCount = (state.rollCount || 0) + 1;
       const isDouble = d1 === d2;
 
       if (actor.inJail) {
@@ -556,7 +561,23 @@ export function applyAction(prevState: GameState, action: GameAction, rng: () =>
     }
 
     case "END_TURN": {
-      if (state.turnPhase !== "player_turn" || currentPlayer(state).id !== actor.id) return state;
+      if (currentPlayer(state).id !== actor.id) return state;
+      const allowedPhases: TurnPhase[] = [
+        "player_turn",
+        "awaiting_buy_decision",
+        "awaiting_toktok_choice",
+        "awaiting_rent_ack",
+        "awaiting_event_ack",
+        "awaiting_block_target",
+      ];
+      if (!allowedPhases.includes(state.turnPhase)) return state;
+
+      if (state.turnPhase === "awaiting_buy_decision" && state.pendingTileIndex !== null) {
+        log(state, `${actor.name} انتهى وقته أو تخطى الشراء وأنهى دوره.`);
+      }
+
+      state.pendingTileIndex = null;
+      state.pendingEvent = null;
       advanceTurn(state);
       return state;
     }

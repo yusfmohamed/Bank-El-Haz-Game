@@ -1,13 +1,19 @@
-import type { Tile as TileData } from "@bank-el-hazz/engine";
-import { GROUPS } from "@bank-el-hazz/engine";
+import type { Tile as TileData, PlayerColor } from "@bank-el-hazz/engine";
+import { GROUPS, playerAvatar } from "@bank-el-hazz/engine";
 import type { CSSProperties } from "react";
+
+export interface PlayerTokenInfo {
+  color: PlayerColor;
+  hex: string;
+  name?: string;
+}
 
 interface TileProps {
   tile: TileData;
   side: "top" | "right" | "bottom" | "left" | "corner";
   ownerColor: string | null;
   houses: number; // 0-4 = houses, 5 = hotel
-  tokenColors: string[]; // colors of players currently standing here
+  tokens: PlayerTokenInfo[]; // players currently standing here
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
@@ -37,7 +43,7 @@ function tileImage(tile: TileData): string | null {
   return null;
 }
 
-export default function Tile({ tile, side, ownerColor, houses, tokenColors, selectable, selected, disabled, onClick }: TileProps) {
+export default function Tile({ tile, side, ownerColor, houses, tokens, selectable, selected, disabled, onClick }: TileProps) {
   const groupColor = tile.type === "prop" ? GROUPS[tile.group]?.color : undefined;
   const groupFlag = tile.type === "prop" ? GROUPS[tile.group]?.flag : undefined;
   const flagAlt = tile.type === "prop" ? "علم البلد" : "";
@@ -64,7 +70,7 @@ export default function Tile({ tile, side, ownerColor, houses, tokenColors, sele
     selectable ? "tile-selectable" : "",
     selected ? "tile-selected" : "",
     disabled ? "tile-disabled" : "",
-    tokenColors.length > 0 ? "tile-occupied" : "",
+    tokens.length > 0 ? "tile-occupied" : "",
   ].filter(Boolean).join(" ");
 
   const style = {
@@ -120,15 +126,22 @@ export default function Tile({ tile, side, ownerColor, houses, tokenColors, sele
         </div>
       )}
 
-      {tokenColors.length > 0 && (
+      {tokens.length > 0 && (
         <div className="tile-tokens">
-          {tokenColors.map((c, i) => (
+          {tokens.map((tok, i) => (
             <span
-              key={`${c}-${i}`}
+              key={`${tok.color}-${i}`}
               className="tile-token"
-              style={{ "--token-color": c } as CSSProperties}
-              aria-label="علامة اللاعب"
-            />
+              style={{ "--token-color": tok.hex } as CSSProperties}
+              title={tok.name}
+              aria-label={tok.name ?? "علامة اللاعب"}
+            >
+              <img
+                src={playerAvatar(tok.color)}
+                alt={tok.name ?? ""}
+                className="tile-token-img"
+              />
+            </span>
           ))}
         </div>
       )}

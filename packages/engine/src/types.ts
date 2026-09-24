@@ -91,6 +91,7 @@ export interface GameState {
   lastRoll: number;
   lastRollDetail: { d1: number; d2: number } | null;
   lastRollAllowsExtraTurn: boolean;
+  rollCount: number;
   turnPhase: TurnPhase;
   pendingTileIndex: number | null;   // tile awaiting a decision (buy prompt, etc.)
   pendingEvent: GameEventCard | null;

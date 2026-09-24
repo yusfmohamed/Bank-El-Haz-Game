@@ -15,7 +15,7 @@ export const TILES: Tile[] = [
   { index: 0, name: "tile_0", displayName: "البداية", type: "start" },
   { index: 1, name: "tile_1", displayName: "القاهرة", type: "prop", group: "Egypt", price: 180 },
   { index: 2, name: "tile_2", displayName: "توك توك", type: "toktok" },
-  { index: 3, name: "tile_3", displayName: "بني سويف", type: "prop", group: "Egypt", price: 140 },
+  { index: 3, name: "tile_3", displayName: "الجيزة", type: "prop", group: "Egypt", price: 140 },
   { index: 4, name: "tile_4", displayName: "الإسكندرية", type: "prop", group: "Egypt", price: 160 },
   { index: 5, name: "tile_5", displayName: "مطار القاهرة", type: "rail", price: 200 },
   { index: 6, name: "tile_6", displayName: "ضرائب", type: "event", pool: "luck" },

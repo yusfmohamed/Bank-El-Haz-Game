@@ -1,4 +1,4 @@
-import { netWorth, colorHex } from "@bank-el-hazz/engine";
+import { netWorth, colorHex, playerAvatar } from "@bank-el-hazz/engine";
 import type { GameState } from "@bank-el-hazz/engine";
 
 interface StatsPanelProps {
@@ -19,8 +19,9 @@ export default function StatsPanel({ gameState, myId, onClose }: StatsPanelProps
         <div>
           {ranked.map((p) => (
             <div key={p.id} className="stat-row">
-              <div className="p-avatar" style={{ background: `${colorHex(p.color)}33`, border: `2px solid ${colorHex(p.color)}` }}>
-                {p.bankrupt ? "💸" : "👤"}
+              <div className="p-avatar" style={{ border: `2px solid ${colorHex(p.color)}`, background: `${colorHex(p.color)}22` }}>
+                <img src={playerAvatar(p.color)} alt={p.name} className="p-avatar-img" />
+                {p.bankrupt && <span className="p-avatar-badge">💸</span>}
               </div>
               <div className="sinfo">
                 <div className="sname">{p.name} {p.id === myId && <span className="p-you">(انت)</span>}</div>

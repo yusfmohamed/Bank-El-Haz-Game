@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState, GameAction } from "@bank-el-hazz/engine";
-import { TILES, groupHasBuildings } from "@bank-el-hazz/engine";
+import { TILES, groupHasBuildings, colorHex, playerAvatar } from "@bank-el-hazz/engine";
 import { clearLastRoom } from "../lib/identity";
 import { playCoin, isSoundEnabled, setSoundEnabled } from "../lib/sound";
 import Board from "../components/Board";
@@ -21,6 +21,18 @@ interface GameScreenProps {
 }
 
 const ROLL_ANIM_MS = 650;
+
+function playDiceSound() {
+  try {
+    const audio = new Audio("/assets/dice.mp3");
+    audio.volume = 0.8;
+    audio.play().catch((err) => {
+      console.warn("Dice sound playback blocked:", err);
+    });
+  } catch (err) {
+    console.warn("Dice audio error:", err);
+  }
+}
 
 function tileDisplayName(tileName: string) {
   return TILES.find((tile) => tile.name === tileName)?.displayName ?? tileName;
@@ -78,12 +90,18 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   const incomingTradeSender = incomingTrade
     ? gameState.players.find((p) => p.id === incomingTrade.playerId) ?? null
     : null;
-  const previousRollRef = useRef<number | null>(null);
+  const previousRollCountRef = useRef<number>(gameState.rollCount || 0);
   const pendingMoveStartRef = useRef<{ playerId: string; pos: number } | null>(null);
+  // Track every player's last known position so we can animate movement for other players too
+  const prevPositionsRef = useRef<Record<string, number>>(
+    Object.fromEntries(gameState.players.map((p) => [p.id, p.pos]))
+  );
   const movementTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [movementInProgress, setMovementInProgress] = useState(false);
 
   function buildPath(from: number, to: number) {
+    // Guard: if from === to there is no movement (avoids a full 40-step loop)
+    if (from === to) return [from];
     const path: number[] = [];
     let cursor = from;
     do {
@@ -136,14 +154,26 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     }
   }
 
-  // Dice animation: purely cosmetic, decoupled from the server round-trip.
+  // Dice animation: decoupled from the server round-trip.
   // We play a short random-face flicker locally the instant the button is
-  // clicked, then let the real result (already broadcast by the time the
-  // animation ends, on any reasonable connection) take over.
+  // clicked, then let the real result take over.
   const [rollingDice, setRollingDice] = useState<{ d1: number; d2: number } | null>(null);
   const canRoll = isMyTurn && gameState.turnPhase === "awaiting_roll" && !rollingDice;
   const animTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRollSeen = useRef(gameState.lastRoll);
+
+  function triggerRollAnimation() {
+    if (animTimer.current) clearInterval(animTimer.current);
+    setRollingDice({ d1: 1, d2: 1 });
+    animTimer.current = setInterval(() => {
+      setRollingDice({ d1: 1 + Math.floor(Math.random() * 6), d2: 1 + Math.floor(Math.random() * 6) });
+    }, 80);
+    setTimeout(() => {
+      if (animTimer.current) clearInterval(animTimer.current);
+      animTimer.current = null;
+      setRollingDice(null);
+    }, ROLL_ANIM_MS);
+  }
 
   useEffect(() => {
     // If the server's roll total changed while we weren't the one animating
@@ -174,35 +204,45 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
   }, [gameState.pendingTrade, isCounterOffer]);
 
   useEffect(() => {
-    if (gameState.lastRoll === 0 || gameState.lastRoll === previousRollRef.current) return;
+    const currentRollCount = gameState.rollCount || 0;
+    if (currentRollCount === 0 || currentRollCount === previousRollCountRef.current) return;
+
+    // Play dice sound and roll animation for all other players
+    if (!isMyTurn) {
+      playDiceSound();
+      triggerRollAnimation();
+    }
 
     const pendingMove = pendingMoveStartRef.current;
-    const player = pendingMove
-      ? gameState.players.find((p) => p.id === pendingMove.playerId)
-      : gameState.players[gameState.currentPlayerIndex];
-    if (!player) return;
-    const from = pendingMove?.pos ?? player.pos;
-    const to = player.pos;
-    if (from !== to) {
-      startMoveAnimation(player.id, from, to);
+    if (pendingMove) {
+      // My own roll — we have a reliable 'from' position captured before dispatch
+      const player = gameState.players.find((p) => p.id === pendingMove.playerId);
+      if (player && pendingMove.pos !== player.pos) {
+        startMoveAnimation(player.id, pendingMove.pos, player.pos);
+      }
+    } else {
+      // Another player rolled — compare against our last-known position snapshot
+      gameState.players.forEach((player) => {
+        const prevPos = prevPositionsRef.current[player.id];
+        if (prevPos !== undefined && prevPos !== player.pos) {
+          startMoveAnimation(player.id, prevPos, player.pos);
+        }
+      });
     }
+    // Update our snapshot of every player's position for the next roll
+    gameState.players.forEach((p) => {
+      prevPositionsRef.current[p.id] = p.pos;
+    });
     pendingMoveStartRef.current = null;
-    previousRollRef.current = gameState.lastRoll;
-  }, [gameState, gameState.lastRoll]);
+    previousRollCountRef.current = currentRollCount;
+  }, [gameState.rollCount, gameState.players, gameState.currentPlayerIndex, isMyTurn]);
 
   function handleRoll() {
     if (!myId || !isMyTurn || gameState.turnPhase !== "awaiting_roll") return;
     pendingMoveStartRef.current = { playerId: currentPlayer.id, pos: currentPlayer.pos };
+    playDiceSound();
+    triggerRollAnimation();
     dispatch({ type: "ROLL_DICE", playerId: myId });
-
-    setRollingDice({ d1: 1, d2: 1 });
-    animTimer.current = setInterval(() => {
-      setRollingDice({ d1: 1 + Math.floor(Math.random() * 6), d2: 1 + Math.floor(Math.random() * 6) });
-    }, 80);
-    setTimeout(() => {
-      if (animTimer.current) clearInterval(animTimer.current);
-      setRollingDice(null);
-    }, ROLL_ANIM_MS);
   }
 
   useEffect(() => () => { if (animTimer.current) clearInterval(animTimer.current); }, []);
@@ -368,50 +408,84 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
     <BlockModal gameState={gameState} myId={myId} isMyTurn={isMyTurn} dispatch={dispatch} inline />
   ) : null;
 
-  // ── Decision countdown ────────────────────────────────────────────────
-  // Only phases where the CURRENT player is being asked to decide something
-  // get a clock. If they don't respond in time, we dispatch a safe default
-  // so the game never gets stuck waiting on someone who stepped away.
-  const DECISION_TIMEOUT_SEC = 15;
+  // ── Turn countdown ────────────────────────────────────────────────
+  // 30-second timer for player turns and decisions.
+  // If the player doesn't act in time, their turn ends (or rolls dice if awaiting roll)
+  // so the game keeps moving seamlessly and doesn't get stuck.
+  const TURN_TIMEOUT_SEC = 30;
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     setCountdown(null);
 
     const timedPhases = new Set([
-      "awaiting_buy_decision", "awaiting_event_ack", "awaiting_rent_ack",
-      "awaiting_bankrupt_ack", "awaiting_block_target", "awaiting_toktok_choice",
+      "awaiting_roll",
+      "player_turn",
+      "awaiting_buy_decision",
+      "awaiting_event_ack",
+      "awaiting_rent_ack",
+      "awaiting_bankrupt_ack",
+      "awaiting_block_target",
+      "awaiting_toktok_choice",
     ]);
-    if (!isMyTurn || !myId || movementInProgress || !timedPhases.has(gameState.turnPhase)) return;
 
-    let remaining = DECISION_TIMEOUT_SEC;
+    if (movementInProgress || !timedPhases.has(gameState.turnPhase) || gameState.turnPhase === "game_over") {
+      return;
+    }
+
+    let remaining = TURN_TIMEOUT_SEC;
     setCountdown(remaining);
+
     countdownTimerRef.current = setInterval(() => {
       remaining -= 1;
       setCountdown(remaining);
+
       if (remaining <= 0) {
         if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
         countdownTimerRef.current = null;
+
+        if (!isMyTurn || !myId) return;
+
         switch (gameState.turnPhase) {
-          case "awaiting_buy_decision": dispatch({ type: "SKIP_PURCHASE", playerId: myId }); break;
-          case "awaiting_event_ack": dispatch({ type: "ACK_EVENT", playerId: myId }); break;
-          case "awaiting_rent_ack": dispatch({ type: "ACK_RENT", playerId: myId }); break;
-          case "awaiting_bankrupt_ack": dispatch({ type: "ACK_BANKRUPT", playerId: myId }); break;
-          case "awaiting_toktok_choice": dispatch({ type: "SKIP_TOKTOK", playerId: myId }); break;
+          case "awaiting_roll":
+            dispatch({ type: "ROLL_DICE", playerId: myId });
+            break;
+          case "awaiting_buy_decision":
+            // Ends turn immediately, skipping the purchase
+            dispatch({ type: "END_TURN", playerId: myId });
+            break;
+          case "player_turn":
+            dispatch({ type: "END_TURN", playerId: myId });
+            break;
+          case "awaiting_event_ack":
+          case "awaiting_rent_ack":
+          case "awaiting_toktok_choice":
+            dispatch({ type: "END_TURN", playerId: myId });
+            break;
+          case "awaiting_bankrupt_ack":
+            dispatch({ type: "ACK_BANKRUPT", playerId: myId });
+            break;
           case "awaiting_block_target": {
             const target = gameState.players.find((p) => p.id !== myId && !p.bankrupt);
-            if (target) dispatch({ type: "CHOOSE_BLOCK_TARGET", playerId: myId, targetPlayerId: target.id });
+            if (target) {
+              dispatch({ type: "CHOOSE_BLOCK_TARGET", playerId: myId, targetPlayerId: target.id });
+            }
+            dispatch({ type: "END_TURN", playerId: myId });
             break;
           }
         }
       }
     }, 1000);
 
-    return () => { if (countdownTimerRef.current) clearInterval(countdownTimerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.turnPhase, isMyTurn, myId, movementInProgress]);
+    return () => {
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  }, [gameState.turnPhase, gameState.currentPlayerIndex, isMyTurn, myId, movementInProgress]);
 
   // The token needs to finish hopping across the board BEFORE any
   // buy/event/rent/etc. panel appears — that's the "see where I landed,
@@ -429,6 +503,11 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
 
   const centerControls = (
     <div className="turn-action-dock" aria-label="Turn actions">
+      {countdown !== null && !decisionPanel && (
+        <div className={`turn-countdown-badge ${countdown <= 5 ? "turn-countdown-urgent" : ""}`}>
+          ⏱ {countdown}s
+        </div>
+      )}
       <button
         className="turn-action-btn turn-action-primary"
         disabled={!canRoll}
@@ -456,7 +535,22 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
       <div className="app-shell">
         <div className="topbar">
           <div className="player-chip">
-            <div className="cur-avatar">{isMyTurn ? "👤" : "⏳"}</div>
+            <div
+              className="cur-avatar"
+              style={{
+                border: `2px solid ${colorHex(currentPlayer.color)}`,
+                padding: 0,
+                overflow: "hidden",
+                borderRadius: "50%",
+                background: `${colorHex(currentPlayer.color)}22`,
+              }}
+            >
+              <img
+                src={playerAvatar(currentPlayer.color)}
+                alt={currentPlayer.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            </div>
             <div>
               <div className="cur-name">{currentPlayer.name}</div>
               <div className="cur-coins">💰 {currentPlayer.coins.toLocaleString()} جنيه</div>
@@ -526,11 +620,11 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
         <div className="status-strip">
           {isMyTurn
             ? gameState.turnPhase === "awaiting_roll"
-              ? "دورك — ارمي النرد!"
+              ? `دورك — ارمي النرد! ${countdown !== null ? `(⏱ ${countdown} ثانية)` : ""}`
               : gameState.turnPhase === "player_turn"
-                ? "دورك — اختار إجراء أو انهي الدور."
+                ? `دورك — اختار إجراء أو انهي الدور. ${countdown !== null ? `(⏱ ${countdown} ثانية)` : ""}`
                 : "..."
-            : `في انتظار ${currentPlayer.name}...`}
+            : `في انتظار ${currentPlayer.name}... ${countdown !== null ? `(⏱ ${countdown} ثانية)` : ""}`}
         </div>
       </div>
 
