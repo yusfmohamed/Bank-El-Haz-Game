@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: bank-el-hazz
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    branch: main
+    autoDeployTrigger: checksPass
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: bank-el-hazz-rooms
+          property: connectionString
+      - key: ROOM_TTL_SECONDS
+        value: "86400"
+      - key: FORFEIT_GRACE_MS
+        value: "60000"
+      - key: MAX_ACTIVE_ROOMS
+        value: "500"
+
+  - type: keyvalue
+    name: bank-el-hazz-rooms
+    region: frankfurt
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot

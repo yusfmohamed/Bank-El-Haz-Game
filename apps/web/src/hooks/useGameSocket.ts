@@ -19,6 +19,7 @@ export function useGameSocket() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resuming, setResuming] = useState(!!getLastRoom());
+  const [myId, setMyId] = useState("");
 
   const lobbyRef = useRef<LobbyInfo | null>(null);
   useEffect(() => { lobbyRef.current = lobby; }, [lobby]);
@@ -28,22 +29,32 @@ export function useGameSocket() {
   useEffect(() => {
     function onLobbyUpdate(info: LobbyInfo) { setResuming(false); setError(null); setLobby(info); saveLastRoom(info.code); }
     function onGameState(state: GameState) { setResuming(false); setError(null); setGameState(state); }
+    function onSessionReady({ playerId }: { playerId: string }) {
+      setMyId(playerId);
+    }
     function onRoomCreated({ code }: { code: string }) {
-      setLobby((prev) => (prev ? { ...prev, code } : { code, hostId: myToken, players: [] }));
+      setLobby((prev) => (prev ? { ...prev, code } : { code, hostId: "", players: [] }));
       saveLastRoom(code);
     }
-    function onRoomError({ message }: { message: string }) {
+    function onRoomError({ message, fatal }: { message: string; fatal?: boolean }) {
       setResuming(false);
       setError(message);
-      clearLastRoom(); // whatever we tried to resume no longer exists / isn't valid — stop retrying it
+      if (fatal) {
+        clearLastRoom();
+        setLobby(null);
+        setGameState(null);
+        setMyId("");
+      }
     }
 
+    socket.on("session_ready", onSessionReady);
     socket.on("lobby_update", onLobbyUpdate);
     socket.on("game_state", onGameState);
     socket.on("room_created", onRoomCreated);
     socket.on("room_error", onRoomError);
 
     return () => {
+      socket.off("session_ready", onSessionReady);
       socket.off("lobby_update", onLobbyUpdate);
       socket.off("game_state", onGameState);
       socket.off("room_created", onRoomCreated);
@@ -96,5 +107,5 @@ export function useGameSocket() {
     socket.emit("game_action", { code: lobby.code, action });
   }, [lobby]);
 
-  return { lobby, gameState, error, myId: myToken, resuming, createRoom, joinRoom, setColor, startGame, dispatch };
+  return { lobby, gameState, error, myId, resuming, createRoom, joinRoom, setColor, startGame, dispatch };
 }

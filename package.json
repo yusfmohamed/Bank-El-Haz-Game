@@ -1,6 +1,9 @@
 {
   "name": "bank-el-hazz",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -8,7 +11,11 @@
   "scripts": {
     "dev:server": "npm run dev --workspace=@bank-el-hazz/server",
     "dev:web": "npm run dev --workspace=@bank-el-hazz/web",
-    "build": "npm run build --workspace=@bank-el-hazz/server",
+    "typecheck": "npm run typecheck --workspace=@bank-el-hazz/engine && npm run typecheck --workspace=@bank-el-hazz/server && npm run typecheck --workspace=@bank-el-hazz/web",
+    "test": "npm run test --workspaces --if-present",
+    "audit": "npm audit --omit=dev",
+    "build": "npm run build --workspace=@bank-el-hazz/web && npm run build --workspace=@bank-el-hazz/server",
+    "check": "npm run typecheck && npm test && npm run audit && npm run build",
     "start": "npm run start --workspace=@bank-el-hazz/server"
   }
 }

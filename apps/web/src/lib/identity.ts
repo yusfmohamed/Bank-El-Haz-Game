@@ -3,7 +3,9 @@ const LAST_ROOM_KEY = "bank-el-hazz:last-room";
 const NICKNAME_KEY = "bank-el-hazz:nickname";
 
 function randomToken(): string {
-  return `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // sessionStorage, NOT localStorage — this is the important part. localStorage

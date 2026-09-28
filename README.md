@@ -7,7 +7,7 @@ packages sharing one source of truth for the rules.
 
 ## 1. Downloading the dependencies (do this first)
 
-You need **Node.js 18 or newer** installed on your computer. Check with:
+You need **Node.js 22 or newer** installed on your computer. Check with:
 ```bash
 node -v
 ```
@@ -60,8 +60,10 @@ bank-el-hazz/
     │   ├── package.json
     │   ├── tsconfig.json
     │   └── src/
-    │       ├── index.ts          boots the server, wires up all socket events, disconnect handling
-    │       └── rooms.ts          room codes, player tokens, color assignment, reconnect grace timers
+    │       ├── index.ts          process startup and graceful shutdown
+    │       ├── server.ts         Fastify, Socket.io, validation, static site, connection handling
+    │       ├── rooms.ts          room rules, public identities, reconnect and forfeit handling
+    │       └── store.ts          in-memory development store + Redis production store
     │
     └── web/                      React + TypeScript (Vite)
         ├── package.json
@@ -151,53 +153,37 @@ no restart required. The landing page logo already looks for
 | Colors / fonts / spacing                 | `apps/web/src/styles/theme.css` and `board.css`        |
 | Images / logo                            | `apps/web/public/assets/`                               |
 | Reconnect grace period, room/token logic | `apps/server/src/rooms.ts`                              |
-| Server/socket event wiring               | `apps/server/src/index.ts`                              |
+| Server/socket event wiring               | `apps/server/src/server.ts`                             |
 
 ---
 
 ## 6. Deploy it online (so strangers can reach it)
 
-We use Render (render.com) — free, no credit card, supports the WebSocket
-connections Socket.io needs. Free tier sleeps after 15 minutes of no
-traffic (30–60s cold start on the next visit); Render's Starter plan
-($7/month) removes that if/when you want strangers landing on it, not
-just friends who'll wait it out.
+Production uses one Render web service for React, Fastify, and Socket.IO,
+plus one persistent Render Key Value instance for active games. The complete
+setup is declared in `render.yaml`.
 
-### 0. Push this project to GitHub first
-Render deploys from a Git repo, not a zip file.
+1. Push the repository to GitHub.
+2. In Render, choose **New → Blueprint** and connect the repository.
+3. Approve the web service and Key Value resources from `render.yaml`.
+4. Wait for the GitHub `CI` check. Render is configured with
+   `autoDeployTrigger: checksPass`, so a failed check cannot deploy.
+5. Open the generated `onrender.com` URL on two devices and create/join a
+   room.
+
+The paid Key Value plan is intentional: it enables disk-backed persistence.
+The production server refuses to start without `REDIS_URL`, preventing an
+accidental deployment that silently loses active matches. Room state expires
+24 hours after the latest update.
+
+Before pushing, run the same release gate locally:
+
 ```bash
-git init
-git add .
-git commit -m "بنك الحظ - initial deploy"
+npm run check
 ```
-Then create a new repo on github.com and follow its "push an existing
-repository" instructions.
 
-### 1. Deploy the server (Web Service)
-On Render: New → Web Service → connect your GitHub repo.
-- **Root Directory**: `apps/server`
-- **Build Command**: `cd ../.. && npm install && npm run build --workspace=@bank-el-hazz/server`
-- **Start Command**: `npm run start`
-- **Environment Variable**: `WEB_ORIGIN` = (leave blank for now, set in step 3)
-
-Deploy. Copy its URL — looks like `https://bank-el-hazz-server.onrender.com`.
-
-### 2. Deploy the website (Static Site)
-On Render: New → Static Site → same GitHub repo.
-- **Root Directory**: `apps/web`
-- **Build Command**: `cd ../.. && npm install && npm run build --workspace=@bank-el-hazz/web`
-- **Publish Directory**: `dist`
-- **Environment Variable**: `VITE_SERVER_URL` = the server URL from step 1
-
-Deploy. Copy this site's URL too.
-
-### 3. Wire them together
-Server's Render dashboard → Environment → set `WEB_ORIGIN` = the website
-URL from step 2. Save (triggers a redeploy).
-
-### 4. Test it
-Open the website URL on your phone and your laptop — create a room on
-one, join with the code on the other.
+For local development, Redis is optional and the server uses an in-memory
+store. Copy `.env.example` when testing with a local Redis-compatible server.
 
 ---
 
@@ -215,8 +201,9 @@ with a real scripted multiplayer client, not assumed):
   actually shows what's happening instead of a static "waiting" message
 - Properties panel with working "build house/hotel" buttons
 - Stats panel with net worth ranking
-- **Reconnect handling**: a stable player token (not the ephemeral socket
-  id) survives page refreshes. Disconnect mid-game and reconnect within
+- **Secure reconnect handling**: a private credential survives page refreshes
+  while a separate public player ID is broadcast to opponents. Disconnect
+  mid-game and reconnect within
   60 seconds → your seat, coins, and properties are exactly as you left
   them. Don't come back in time → you're auto-forfeited so the game isn't
   stuck waiting forever. Both paths tested directly, including forcing
@@ -240,12 +227,13 @@ with a real scripted multiplayer client, not assumed):
   refresh within one tab still keeps working for reconnect; a new tab
   correctly gets its own identity now, same as a different person
   joining.
-- **Deploy-ready for hosts without monorepo root-directory support**
-  (like Bonto): root-level `npm run build` / `npm run start` now target
-  the server directly, tested by literally running that exact sequence
-  from the repo root standalone.
-- Production server bundle verified standalone (`npm run build` + `npm
-  run start`, no dev tools at runtime) under the full test suite
+- **Production persistence and safety**: active rooms use Redis-compatible
+  storage with a sliding TTL; actions are bound to the connected socket;
+  payloads, nicknames, origins, room counts, and event rates are validated.
+- **Single-origin production build**: root-level `npm run build` builds React
+  and Fastify, and `npm start` serves the website and Socket.IO together.
+- **Automated release gate**: GitHub Actions type-checks, tests, audits, and
+  builds every change. Render only deploys `main` after those checks pass.
 
 ⏳ **Not built yet:**
 - Actually deployed online (code is deploy-ready — see section 6 — but
