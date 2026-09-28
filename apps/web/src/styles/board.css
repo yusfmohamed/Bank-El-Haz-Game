@@ -408,6 +408,14 @@
   order: 1;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.34));
 }
+.tile-tax-icon {
+  width: min(43px, 78%);
+  height: min(41px, 56%);
+  object-fit: contain;
+  display: block;
+  order: 1;
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.32));
+}
 .tile-corner-icon {
   width: min(54px, 72%);
   height: min(44px, 58%);
@@ -1287,22 +1295,37 @@
 @media (max-width: 480px) {
   .cur-name, .cur-coins { font-size: 11px; }
   .icon-btn { width: 34px; height: 34px; }
+  .board-wrap { justify-content: flex-start; }
+  .board { width: 440px; min-width: 440px; }
   .tile-name { display: none; }
-  .tile-deed .tile-name { display: -webkit-box; font-size: 6.5px; }
+  .tile-deed .tile-name {
+    display: -webkit-box;
+    position: absolute;
+    top: 17px;
+    left: 1px;
+    width: calc(100% - 2px);
+    min-height: 0;
+    padding: 1px;
+    font-size: 7px;
+    line-height: 1.1;
+    -webkit-line-clamp: 1;
+    background: rgba(255, 246, 210, 0.92);
+    z-index: 6;
+  }
   .tile-corner .tile-name { display: -webkit-box; font-size: 7px; }
-  .tile-deed { justify-content: center; }
+  .tile-deed { justify-content: flex-start; padding: 0 1px 12px; }
   .tile-ic { font-size: 11px; }
   .tile-start-icon { width: min(58px, 118%); max-height: 90%; margin-bottom: -7px; }
   .tile-toktok-icon { width: min(28px, 82%); height: min(24px, 50%); }
   .tile-util-icon { width: 22px; height: 22px; }
   .tile-rail-icon { width: min(28px, 80%); height: min(20px, 42%); }
   .tile-event-icon { width: min(25px, 76%); height: min(24px, 48%); }
+  .tile-tax-icon { width: min(25px, 76%); height: min(24px, 48%); }
   .tile-corner-icon { width: min(28px, 72%); height: min(25px, 54%); }
-  .tile-flag { width: 16px; height: 16px; top: 12px; }
+  .tile-flag { width: 14px; height: 14px; top: 9px; }
   .tile-house-icon { width: 8px; height: 8px; margin-left: -3px; }
   .tile-hotel-mark { width: 14px; height: 13px; }
   .tile-deed-header { height: 0; }
-  .tile-deed { padding-top: 22px; }
   .bottombar { padding: 8px; }
   .roll-btn { padding: 10px 16px; font-size: 13px; }
 }

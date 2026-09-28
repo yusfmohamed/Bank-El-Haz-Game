@@ -556,9 +556,6 @@ export default function GameScreen({ gameState, myId, dispatch }: GameScreenProp
               <div className="cur-coins">💰 {currentPlayer.coins.toLocaleString()} جنيه</div>
             </div>
           </div>
-          <div className="board-title">
-            <img src="/assets/logo.png" alt="بنك الحظ" className="board-logo" />
-          </div>
           <div className="topbar-right">
             <button className="icon-btn" title="الممتلكات" onClick={() => setPanel("properties")}>🏘️</button>
             <button className="icon-btn" title="الإحصائيات" onClick={() => setPanel("stats")}>📊</button>

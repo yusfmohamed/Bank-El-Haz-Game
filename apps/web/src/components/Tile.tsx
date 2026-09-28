@@ -34,6 +34,7 @@ function tileImage(tile: TileData): string | null {
   if (tile.type === "start") return "/assets/starticon.png";
   if (tile.type === "toktok") return "/assets/toktok.png";
   if (tile.type === "rail") return "/assets/airport.png";
+  if (tile.index === 6 || tile.index === 38) return "/assets/tax.png";
   if (tile.index === 12) return "/assets/padel.png";
   if (tile.type === "util") return "/assets/football.png";
   if (tile.index === 8 || tile.index === 23) return "/assets/surprise.png";
@@ -54,6 +55,7 @@ export default function Tile({ tile, side, ownerColor, houses, tokens, selectabl
   const imageClass =
     tile.type === "start" ? "tile-start-icon"
     : tile.type === "toktok" ? "tile-toktok-icon"
+    : tile.index === 6 || tile.index === 38 ? "tile-tax-icon"
     : tile.type === "util" ? "tile-util-icon"
     : tile.type === "rail" ? "tile-rail-icon"
     : tile.type === "event" ? "tile-event-icon"
