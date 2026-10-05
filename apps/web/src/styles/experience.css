@@ -1,0 +1,248 @@
+/* ==========================================================================
+   experience.css — layout, dice, animation and usability pass.
+   Pure CSS. Import LAST in main.tsx (after responsive-tiles.css):
+     import "./styles/experience.css";
+   Delete the file to revert.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. LAPTOP / DESKTOP: one locked screen, no scrolling, board centred
+   --------------------------------------------------------------------------
+   The board is sized by the free height AND width (whichever is smaller), so
+   it is always fully visible. Players, status and log live in a side column;
+   the log scrolls inside its own box. Short windows fall back to normal
+   scrolling instead of squashing things.
+   ========================================================================== */
+@media (min-width: 1000px) and (min-height: 640px) {
+  html:has(.game-screen), body:has(.game-screen) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .game-screen {
+    height: 100dvh;
+    min-height: 0;
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+  .app-shell {
+    max-width: none;
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 25vw, 380px);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    column-gap: 14px;
+    row-gap: 10px;
+    align-items: start;
+  }
+
+  .app-shell > .topbar         { grid-column: 1 / -1; grid-row: 1; padding: 8px 18px; }
+  .app-shell > .board-wrap     { grid-column: 1; grid-row: 2 / -1; align-self: stretch; }
+  .app-shell > .bottombar      { grid-column: 2; grid-row: 2; }
+  .app-shell > .status-strip   { grid-column: 2; grid-row: 3; }
+  .app-shell > .game-log-panel { grid-column: 2; grid-row: 4; align-self: stretch; }
+
+  /* board: biggest square that fits, centred both ways */
+  .board-wrap {
+    container-type: size;
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+  }
+  .board { width: min(100cqw, 100cqh, 1180px); }
+
+  /* side column */
+  .bottombar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; padding: 10px; }
+  .player-strip { flex-direction: column; flex-wrap: nowrap; }
+  .p-card { width: 100%; padding: 6px 12px; }
+  .p-avatar { width: 40px; height: 40px; }
+  .bottombar > .btn-skip { width: 100%; }
+
+  .game-log-panel { display: flex; flex-direction: column; min-height: 0; padding: 10px 12px; }
+  .game-log-panel .modal-title { font-size: 16px; }
+  .game-log-list { flex: 1 1 auto; min-height: 0; max-height: none; }
+  .cur-avatar { width: 40px; height: 40px; }
+}
+
+/* landscape phones: keep the board inside the height instead of scrolling a lot */
+@media (max-height: 639px) and (min-width: 761px) {
+  .board { width: min(100%, calc(100dvh - 24px)); }
+}
+
+/* ==========================================================================
+   2. DICE: crisp at every size
+   --------------------------------------------------------------------------
+   The cube used to be ~40px with faces pushed out a fixed 26px, so on phones
+   the 3D faces didn't match the cube and rendered blurry. Now the cube is
+   built big (96px, faces at 48px) and scaled down, so it is rasterised
+   sharply, and the size follows the board.
+   ========================================================================== */
+.board .dice-wrap {
+  gap: clamp(12px, 3cqw, 26px);
+  perspective: 700px;
+  padding-bottom: 8px;
+}
+.board .dice3d-scene {
+  --dscale: 0.5;
+  position: relative;
+  width: calc(96px * var(--dscale));
+  height: calc(96px * var(--dscale));
+}
+@container board (min-width: 400px) { .board .dice3d-scene { --dscale: 0.56; } }
+@container board (min-width: 600px) { .board .dice3d-scene { --dscale: 0.62; } }
+@container board (min-width: 800px) { .board .dice3d-scene { --dscale: 0.72; } }
+
+.board .dice3d-cube {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 96px;
+  height: 96px;
+  margin: -48px 0 0 -48px;
+  scale: var(--dscale) var(--dscale) var(--dscale);   /* scales Z too */
+  will-change: transform;
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.board .dice3d-face {
+  border-radius: 20px;
+  border: 3px solid var(--navy, #1d2557);
+  padding: 13px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 30% 25%, #ffffff 0%, #f1ecdc 60%, #ddd5bd 100%);
+  box-shadow:
+    inset 0 3px 4px rgba(255, 255, 255, 0.9),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.14);
+}
+.board .pip {
+  width: 17px;
+  height: 17px;
+  background: radial-gradient(circle at 35% 30%, #4a58b0 0%, var(--navy, #1d2557) 65%);
+  box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.35);
+}
+.board .dice3d-front  { transform: translateZ(48px); }
+.board .dice3d-back   { transform: rotateY(180deg) translateZ(48px); }
+.board .dice3d-right  { transform: rotateY(90deg)   translateZ(48px); }
+.board .dice3d-left   { transform: rotateY(-90deg)  translateZ(48px); }
+.board .dice3d-top    { transform: rotateX(90deg)   translateZ(48px); }
+.board .dice3d-bottom { transform: rotateX(-90deg)  translateZ(48px); }
+
+/* soft contact shadow under each die */
+.board .dice3d-scene::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -7px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.38);
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+/* toss while rolling: up, land, small bounce */
+.dice-rolling .dice3d-scene { animation: dice-toss 0.65s cubic-bezier(0.3, 0.7, 0.4, 1); }
+.dice-rolling .dice3d-scene:nth-child(2) { animation-delay: 0.07s; }
+.dice-rolling .dice3d-scene::after { animation: dice-shadow 0.65s ease-in-out; }
+@keyframes dice-toss {
+  0%   { transform: translateY(0); }
+  35%  { transform: translateY(-26px) rotate(6deg); }
+  68%  { transform: translateY(0) rotate(-3deg); }
+  84%  { transform: translateY(-7px); }
+  100% { transform: translateY(0); }
+}
+@keyframes dice-shadow {
+  0%, 68%, 100% { transform: scaleX(1);   opacity: 1; }
+  35%           { transform: scaleX(0.6); opacity: 0.45; }
+}
+
+/* ==========================================================================
+   3. ANIMATIONS: tokens, tiles, panels, log, buttons
+   ========================================================================== */
+
+/* tokens hop from tile to tile (steps arrive every 140ms) */
+.board .tile-token { animation: token-hop 0.2s cubic-bezier(0.3, 0.7, 0.4, 1) backwards; }
+@keyframes token-hop {
+  0%   { transform: translateY(0) scale(0.85); }
+  45%  { transform: translateY(-42%) scale(1.15); }
+  100% { transform: translateY(0) scale(1); }
+}
+/* each tile the token touches pings softly */
+.tile-occupied { animation: tile-ping 0.5s ease-out; }
+@keyframes tile-ping {
+  from { box-shadow: 0 0 0 0 rgba(247, 197, 44, 0.75); }
+  to   { box-shadow: 0 0 0 clamp(5px, 1.2cqw, 14px) rgba(247, 197, 44, 0); }
+}
+
+.tile { transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.4, 1), box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease; }
+
+/* newest log line slides in */
+.game-log-entry:first-child { animation: log-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes log-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* the roll button invites a click when it's your turn */
+.turn-action-primary:not(:disabled),
+.roll-btn:not(:disabled) { animation: roll-nudge 1.7s ease-in-out infinite; }
+@keyframes roll-nudge {
+  0%, 100% { filter: brightness(1);    transform: translateY(0); }
+  50%      { filter: brightness(1.12); transform: translateY(-2px); }
+}
+
+/* screens and panels */
+.game-screen { animation: screen-in 0.4s ease both; }
+@keyframes screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.board-center-panel { animation: panel-slide 0.3s cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes panel-slide {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ==========================================================================
+   4. PHONES: easier to use
+   ========================================================================== */
+button, .nav-btn, .icon-btn, .turn-action-btn { touch-action: manipulation; }
+.text-input, .trade-select { font-size: 16px; }   /* stops iOS zooming into fields */
+
+@media (max-width: 760px) {
+  /* bigger tap targets for the in-board actions */
+  .turn-action-btn { min-height: 44px; min-width: 116px; font-size: 13.5px; }
+  .turn-countdown-badge { font-size: 13px; padding: 6px 12px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .btn-skip, .btn-buy, .btn-ok { min-height: 46px; }
+
+  /* modals become bottom sheets: thumb-friendly, slide up */
+  .overlay.open { align-items: flex-end; padding: 0; }
+  .overlay.open .modal {
+    max-width: none;
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: max(22px, env(safe-area-inset-bottom));
+    animation: sheet-up 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .overlay.open .win-card { animation: sheet-up 0.32s cubic-bezier(0.2, 0.9, 0.3, 1); }
+}
+@keyframes sheet-up {
+  from { opacity: 0.6; transform: translateY(60px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ==========================================================================
+   5. Respect "reduce motion"
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .board .tile-token, .tile-occupied, .game-log-entry:first-child,
+  .turn-action-primary, .roll-btn, .game-screen, .board-center-panel,
+  .dice-rolling .dice3d-scene, .dice-rolling .dice3d-scene::after,
+  .overlay.open .modal { animation: none !important; }
+  .board .dice3d-cube { transition-duration: 0.01ms; }
+}

@@ -1,0 +1,161 @@
+/* ==========================================================================
+   responsive-tiles.css — makes tile content scale WITH the board.
+
+   Why mobile looked unbalanced: flags, icons, tokens, text and the strip
+   padding were set in fixed px, tuned for ~80px laptop tiles. On a phone the
+   tiles are ~24px, so everything collided. Here every size is derived from
+   the board's own width (cqw = 1% of the board), so a phone is simply a
+   smaller copy of the laptop board.
+
+   Import LAST in main.tsx (after polish.css and reference-theme.css):
+     import "./styles/responsive-tiles.css";
+   Delete the file to revert.
+   ========================================================================== */
+
+.board {
+  container-type: inline-size;
+  container-name: board;
+  --strip: clamp(5px, 2cqw, 18px);          /* coloured strip thickness */
+}
+
+/* ---- Property tiles: clean column [flag] [name] [price], centred ---------
+   Flag and price used to be absolutely positioned, which is what made them
+   overlap the name on small tiles. They now flow normally.                  */
+.board .tile-deed {
+  justify-content: center;
+  align-items: center;
+  gap: clamp(1px, 0.3cqw, 4px);
+  padding: 0.4cqw;
+}
+/* keep content clear of the strip, on whichever edge it sits */
+.board .tile-side-top.tile-deed    { padding-bottom: calc(var(--strip) + 0.4cqw); }
+.board .tile-side-bottom.tile-deed { padding-top:    calc(var(--strip) + 0.4cqw); }
+.board .tile-side-left.tile-deed   { padding-right:  calc(var(--strip) + 0.4cqw); }
+.board .tile-side-right.tile-deed  { padding-left:   calc(var(--strip) + 0.4cqw); }
+
+.board .tile-deed .tile-flag {
+  position: static;
+  transform: none;
+  order: 1;
+  flex: 0 0 auto;
+  width: clamp(10px, 2.9cqw, 28px);
+  height: clamp(10px, 2.9cqw, 28px);
+  margin: 0;
+  border-width: clamp(1px, 0.2cqw, 2px);
+}
+.board .tile .tile-name {
+  position: relative;
+  top: auto;
+  left: auto;
+  order: 2;
+  width: 100%;
+  min-height: 0;
+  padding: 0 0.2cqw;
+  font-size: clamp(5.5px, 1.15cqw, 11px);
+  line-height: 1.12;
+  background: transparent;
+}
+.board .tile .tile-price {
+  position: static;
+  transform: none;
+  order: 3;
+  font-size: clamp(5px, 0.95cqw, 10px);
+  padding: 0 0.5cqw;
+}
+
+/* owner stripe + buildings scale too */
+.board .tile-owner-stripe { height: clamp(3px, 0.8cqw, 7px); }
+.board .tile-houses { top: clamp(1px, 0.5cqw, 6px); right: clamp(1px, 0.4cqw, 4px); }
+.board .tile-house-icon { width: clamp(6px, 1.25cqw, 15px); height: clamp(6px, 1.25cqw, 15px); margin-left: -0.3cqw; }
+.board .tile-hotel-mark { top: clamp(1px, 0.5cqw, 6px); right: clamp(1px, 0.4cqw, 4px); width: clamp(9px, 2.2cqw, 25px); height: clamp(9px, 2.1cqw, 24px); }
+.board .tile-badge { font-size: clamp(5px, 0.8cqw, 8px); padding: 0 0.3cqw; }
+
+/* ---- Special tiles (corners, events, utilities, rail, tuk-tuk, start) ---- */
+.board .tile:not(.tile-deed) {
+  justify-content: center;
+  align-items: center;
+  gap: clamp(0px, 0.25cqw, 3px);
+  padding: 0.5cqw;
+}
+.board .tile .tile-image {
+  order: 1;
+  margin: 0;
+  width: 78%;
+  height: auto;
+  max-height: 62%;
+  object-fit: contain;
+}
+.board .tile .tile-ic { font-size: clamp(10px, 2.4cqw, 22px); order: 1; }
+
+/* ---- Player tokens scale with the tile ----------------------------------- */
+.board .tile-tokens { max-width: none; flex-wrap: nowrap; top: 55%; }
+.board .tile-token {
+  width: clamp(12px, 3.3cqw, 32px);
+  height: clamp(12px, 3.3cqw, 32px);
+  border-width: clamp(1.5px, 0.25cqw, 2.5px);
+}
+.board .tile-token + .tile-token { margin-left: calc(clamp(12px, 3.3cqw, 32px) * -0.33); }
+
+/* ---- Small boards (phones) -------------------------------------------------
+   Names and prices stay visible, just sized to the tile: one line, ellipsis
+   if a long city name can't fit (tap the tile to see the full name).
+   The board is also made nearly full-bleed so tiles are as big as possible. */
+@media (max-width: 760px) {
+  .game-screen { padding: 4px; }
+  .app-shell { gap: 6px; }
+  .board-wrap { padding: 0; }
+  .board { border-width: 4px; padding: 3px; }
+  .grid { gap: 1.5px; }
+}
+
+@container board (max-width: 560px) {
+  .board { --strip: clamp(4px, 1.7cqw, 8px); }
+
+  .board .tile-deed { gap: 1px; padding: 0.3cqw; }
+  .board .tile-deed .tile-flag {
+    width: clamp(8px, 2.7cqw, 13px);
+    height: clamp(8px, 2.7cqw, 13px);
+    border-width: 1px;
+  }
+
+  .board .tile .tile-name {
+    display: block;
+    -webkit-line-clamp: unset;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    padding: 0;
+    font-size: clamp(5.2px, 1.72cqw, 8px);
+    font-weight: 900;
+    line-height: 1.15;
+    letter-spacing: 0;
+  }
+  .board .tile .tile-price {
+    font-size: clamp(5.2px, 1.72cqw, 8px);
+    font-weight: 800;
+    line-height: 1.1;
+    padding: 0 0.4cqw;
+    border-radius: 3px;
+  }
+
+  /* special tiles: icon on top, small name underneath */
+  .board .tile:not(.tile-deed) { gap: 1px; padding: 0.3cqw; }
+  .board .tile:not(.tile-deed) .tile-image { width: 80%; max-height: 56%; }
+  .board .tile .tile-ic { font-size: clamp(9px, 3.2cqw, 16px); }
+
+  .board .tile-token { width: clamp(11px, 4cqw, 18px); height: clamp(11px, 4cqw, 18px); }
+}
+
+/* very small phones (board under ~330px): too tight for text, keep icons only */
+@container board (max-width: 330px) {
+  .board .tile .tile-name,
+  .board .tile .tile-price { display: none; }
+  .board .tile:not(.tile-deed) .tile-image { width: 88%; max-height: 88%; }
+  .board .tile-deed .tile-flag { width: clamp(10px, 4cqw, 18px); height: clamp(10px, 4cqw, 18px); }
+}
+
+/* touch screens: no sticky "zoomed tile" after a tap */
+@media (hover: none) {
+  .tile:hover { transform: none; }
+}

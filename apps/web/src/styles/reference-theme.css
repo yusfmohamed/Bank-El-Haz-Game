@@ -1,0 +1,226 @@
+/* ==========================================================================
+   reference-theme.css — re-skins the whole game to match the reference board:
+   navy background, red + yellow dotted frame, cream property tiles with a
+   coloured strip on the INNER edge, navy corners, red/navy event tiles,
+   speckled navy centre.
+
+   Import LAST in main.tsx (after polish.css if you use it):
+     import "./styles/reference-theme.css";
+   Pure CSS. Nothing is removed (flags, houses, hotels, tokens, owner
+   stripes, prices, all modals keep working). Delete the file to revert.
+   ========================================================================== */
+
+/* ---- 1. Palette (flows into landing, lobby, panels, modals, buttons) ----- */
+:root {
+  --navy:        #1d2557;
+  --navy-2:      #252e6b;
+  --navy-3:      #2f3a82;
+  --cream:       #fcebc0;
+  --cream-2:     #f7dfa6;
+
+  --bg-deep:     #1a2152;
+  --panel:       #222a63;
+  --panel-2:     #2a3373;
+  --panel-line:  #3d4896;
+  --gold:        #f7c52c;
+  --gold-light:  #ffd95e;
+  --gold-deep:   #e2a912;
+  --red:         #e8334d;
+  --red-deep:    #c4223a;
+  --ink:         #1d2557;          /* dark text on yellow buttons */
+  --text-soft:   #aab3e8;
+  --green:       #3dbb94;
+  --blue:        #4a63d8;
+  --shadow:      rgba(6, 9, 30, 0.6);
+
+  /* property group strip colours (from the reference board) */
+  --g-egypt:   #6e2a12;   /* brown  */
+  --g-spain:   #f3aaa6;   /* pink   */
+  --g-china:   #6cbf3f;   /* green  */
+  --g-saudi:   #e0243d;   /* red    */
+  --g-qatar:   #3dbb94;   /* teal   */
+  --g-germany: #6b4fa3;   /* purple */
+  --g-france:  #c9a43a;   /* mustard*/
+  --g-italy:   #e8693f;   /* orange */
+
+  --strip: clamp(9px, 1.35vw, 17px);   /* thickness of the coloured strip */
+}
+
+/* ---- 2. Page background: navy + gold dust in the top corner -------------- */
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #2b3680 0%, transparent 62%),
+    var(--bg-deep);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background:
+    radial-gradient(circle, rgba(247, 197, 44, 0.9) 0 1px, transparent 1.7px) 0 0 / 11px 13px,
+    radial-gradient(circle, rgba(247, 197, 44, 0.7) 0 0.8px, transparent 1.4px) 5px 7px / 17px 19px;
+  -webkit-mask-image: radial-gradient(ellipse 55% 40% at 100% 0%, #000 0%, transparent 72%);
+          mask-image: radial-gradient(ellipse 55% 40% at 100% 0%, #000 0%, transparent 72%);
+}
+#root { position: relative; z-index: 1; }
+
+.text-input::placeholder { color: #6f7ac0; }
+.divider, .divider { color: #7f8bd0; }
+.error-note { color: #ff9aa9; background: rgba(232, 51, 77, 0.14); border-color: rgba(232, 51, 77, 0.5); }
+.btn-skip, .info-row, .info-row strong { color: #c3cbf5; }
+.info-row { border-bottom-color: var(--panel-line); }
+.btn-primary, .btn-buy, .btn-ok { box-shadow: 0 4px 0 #a97a06, 0 8px 18px rgba(0, 0, 0, 0.3); }
+.roll-btn { box-shadow: 0 6px 0 #a97a06; }
+
+/* ---- 3. Board frame: red outer edge + yellow dotted band ----------------- */
+.board {
+  background:
+    radial-gradient(circle, var(--red) 0 1.6px, transparent 2.3px) 0 0 / 15px 15px,
+    var(--gold);
+  border: clamp(5px, 0.95vw, 10px) solid var(--red);
+  border-radius: 6px;
+  padding: clamp(7px, 1.3vw, 15px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+.board-wrap {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* grid gaps read as thin cream dividers, like the printed board */
+.grid {
+  background: var(--cream-2);
+  gap: 3px;
+  padding: 0;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+/* ---- 4. Centre: navy with white speckles --------------------------------- */
+.board-center {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 0.7px, transparent 1.2px) 0 0 / 19px 23px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0 0.6px, transparent 1.1px) 9px 11px / 29px 31px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.35) 0 0.5px, transparent 1px) 4px 17px / 13px 37px,
+    radial-gradient(ellipse at center, #2c377c 0%, #1f2860 62%, #181f4c 100%);
+  border-radius: 0;
+}
+.board-title {
+  color: var(--gold);
+  text-shadow: 3px 3px 0 var(--red), 0 10px 20px rgba(0, 0, 0, 0.35);
+}
+.board-subtitle { color: #c3cbf5; }
+.board-inline-panel {
+  background: rgba(24, 31, 76, 0.92);
+  border-color: rgba(247, 197, 44, 0.6);
+}
+.dice3d-face { border-color: var(--navy); }
+.pip { background: var(--navy); }
+
+/* ---- 5. Tiles ------------------------------------------------------------ */
+.tile {
+  background: var(--cream);
+  border: 0;
+  border-radius: 0;
+  color: var(--navy);
+}
+.tile:hover { background: #fff3d2; }
+.tile-name { color: var(--navy); font-weight: 900; }
+
+/* property (deed) tiles: flat cream, coloured strip on the inner edge */
+.tile-deed {
+  --strip-color: var(--panel-line);
+  background: var(--cream);
+  box-shadow: none;
+}
+.tile-deed .tile-name {
+  background: transparent;
+  box-shadow: none;
+  text-shadow: none;
+  color: var(--navy);
+}
+.tile-deed::before {
+  content: "";
+  position: absolute;
+  background: var(--strip-color);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* group colour -> reference strip colour (matches the --group-color property
+   only, so player colours that share a hex never collide) */
+.tile-deed[style*="--group-color: #8b5e34"], .tile-deed[style*="--group-color:#8b5e34"] { --strip-color: var(--g-egypt); }
+.tile-deed[style*="--group-color: #2f7fb0"], .tile-deed[style*="--group-color:#2f7fb0"] { --strip-color: var(--g-spain); }
+.tile-deed[style*="--group-color: #2fa562"], .tile-deed[style*="--group-color:#2fa562"] { --strip-color: var(--g-china); }
+.tile-deed[style*="--group-color: #c0392b"], .tile-deed[style*="--group-color:#c0392b"] { --strip-color: var(--g-saudi); }
+.tile-deed[style*="--group-color: #16a085"], .tile-deed[style*="--group-color:#16a085"] { --strip-color: var(--g-qatar); }
+.tile-deed[style*="--group-color: #8e44ad"], .tile-deed[style*="--group-color:#8e44ad"] { --strip-color: var(--g-germany); }
+.tile-deed[style*="--group-color: #d4a017"], .tile-deed[style*="--group-color:#d4a017"] { --strip-color: var(--g-france); }
+.tile-deed[style*="--group-color: #e74c3c"], .tile-deed[style*="--group-color:#e74c3c"] { --strip-color: var(--g-italy); }
+
+/* strip sits on the edge facing the centre of the board */
+.tile-side-top::before    { left: 0; right: 0; bottom: 0; height: var(--strip); box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.18); }
+.tile-side-bottom::before { left: 0; right: 0; top: 0;    height: var(--strip); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18); }
+.tile-side-left::before   { top: 0; bottom: 0; right: 0;  width: var(--strip);  box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.18); }
+.tile-side-right::before  { top: 0; bottom: 0; left: 0;   width: var(--strip);  box-shadow: inset -3px 0 0 rgba(0, 0, 0, 0.18); }
+
+/* make room for the strip so flag / price / name never sit on top of it */
+.tile-side-top.tile-deed    { padding-bottom: calc(var(--strip) + 15px); }
+.tile-side-bottom.tile-deed { padding-top: calc(var(--strip) + 28px); }
+.tile-side-left.tile-deed   { padding-right: calc(var(--strip) + 3px); }
+.tile-side-right.tile-deed  { padding-left: calc(var(--strip) + 3px); }
+.tile-side-top .tile-price    { bottom: calc(var(--strip) + 3px); }
+.tile-side-bottom .tile-flag  { top: calc(var(--strip) + 16px); }
+.tile-side-left .tile-flag,  .tile-side-left .tile-price  { left: calc(50% - var(--strip) / 2); }
+.tile-side-right .tile-flag, .tile-side-right .tile-price { left: calc(50% + var(--strip) / 2); }
+
+/* price: plain coloured text like the printed board, not a dark pill */
+.tile-deed .tile-price {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  font-size: clamp(7px, 0.8vw, 10px);
+  font-weight: 800;
+  color: color-mix(in srgb, var(--strip-color) 72%, var(--navy) 28%);
+}
+
+/* ---- 6. Corners & special tiles ------------------------------------------ */
+.tile-corner,
+.tile-prison-corner {
+  background: var(--navy-2);
+}
+.tile-corner .tile-name,
+.tile-prison-corner .tile-name { color: var(--gold); text-shadow: none; }
+
+.tile-start { background: var(--navy-2); }
+.tile-start .tile-name { color: #fff; text-shadow: none; }
+
+/* حظك / محكمة style: red top, navy name band */
+.tile-event {
+  background: linear-gradient(180deg, var(--red) 0 60%, var(--navy-2) 60% 100%);
+}
+.tile-event .tile-name { color: var(--gold); text-shadow: none; }
+
+/* utilities: red with yellow icon */
+.tile-util { background: var(--red); }
+.tile-util .tile-name { color: #fff; text-shadow: none; }
+.tile-util .tile-price,
+.tile-rail .tile-price { background: rgba(0, 0, 0, 0.22); color: var(--gold-light); }
+
+/* rail / airport and tuk-tuk: navy with yellow accents */
+.tile-rail { background: var(--navy-3); }
+.tile-rail .tile-name { color: var(--gold-light); text-shadow: none; }
+.tile-toktok { background: var(--navy-2); }
+.tile-toktok .tile-name { color: var(--gold); text-shadow: none; }
+
+/* ---- 7. Mobile: keep the frame proportional ------------------------------ */
+@media (max-width: 760px) {
+  :root { --strip: 8px; }
+  .grid { gap: 2px; }
+  .board { padding: 5px; }
+}
