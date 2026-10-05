@@ -70,12 +70,12 @@ export default function Board({ gameState, rollingDice, onTileClick, centerPanel
             {centerControls && <div className="board-center-actions">{centerControls}</div>}
             <div className="board-center-brand">
               <img
-                src="/assets/Logo.png"
-                alt="بنك الحظ"
-                className="board-logo"
+                // src="/assets/logo.png"
+                // alt="بنك الحظ"
+                // className="board-logo"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
-              <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div>
+              {/* <div className="board-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
             </div>
             {centerPanel && <div className="board-center-panel">{centerPanel}</div>}
             <div className={`dice-wrap ${rollingDice ? "dice-rolling" : ""}`}>

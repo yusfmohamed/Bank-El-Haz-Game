@@ -17,7 +17,7 @@ export default function Landing({ error, onCreateRoom, onJoinRoom }: LandingProp
   return (
     <div className="screen-center">
       <div className="card">
-        <img src="/assets/Logo.png" alt="بنك الحظ" className="logo" />
+        <img src="/assets/logo.png" alt="بنك الحظ" className="logo" />
 
         {/* <div className="brand-title">بنك الحظ</div> */}
         {/* <div className="brand-subtitle">اللعبة المصرية اللي مليهاش آخر</div> */}
